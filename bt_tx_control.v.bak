@@ -1,0 +1,84 @@
+module bt_tx_control (
+    input  wire clk,
+    input  wire rst,     // active LOW reset
+    //input  wire [15:0] dist1,
+    input  wire uart_busy,
+
+    output reg  tx_start,
+    output reg  [7:0] tx_data,
+    input  wire [1:0] msg_type,
+    output reg  btx_done,
+    input  wire send_start 
+);
+
+    reg [3:0] state;
+    reg [15:0] delay_cnt;
+    
+
+    localparam MSG_MPIM = 2'd0,
+               MSG_MM   = 2'd1,
+               MSG_TH   = 2'd2,
+               MSG_END  = 2'd3;
+
+    localparam S_M = 0, S_I = 1, S_P = 2, S_M2 = 3, S_EQ = 4,
+               TEMP = 5, HUM = 6, IDLE = 7, S_H0 = 8, S_NL = 9, MPI = 10;
+
+    function [7:0] to_hex;
+        input [3:0] v;
+        begin
+            if (v < 10) to_hex = 8'h30 + v;
+            else        to_hex = 8'h41 + (v - 10);
+        end
+    endfunction
+
+    always @(posedge clk or negedge rst) begin
+        if (!rst) begin
+            state <= IDLE;
+            tx_start <= 0;
+            tx_data <= 0;
+            delay_cnt <= 0;
+            btx_done <= 0;
+        end else begin
+            tx_start <= 0;
+
+            if (delay_cnt != 0) begin
+                delay_cnt <= delay_cnt - 1;
+            end 
+            else if (!uart_busy) begin
+                case (state)
+                    IDLE: begin
+                    btx_done <=0;
+                    if (send_start) begin
+                        case (msg_type)
+                            MSG_MPIM: state <= S_M;
+                           /* MSG_MM:   state <= ;
+                            MSG_TH:   state <= 40;
+                            MSG_END:  state <= 70; */
+                        endcase
+                    end
+                end
+
+                    S_M:  begin tx_data <= "M"; tx_start <= 1; state <= S_P; end
+                    S_P:  begin tx_data <= "P"; tx_start <= 1; state <= S_I; end
+                    S_I:  begin tx_data <= "I"; tx_start <= 1; btx_done <= 1'b1; state <= S_NL; end
+                /*  S_M2:  begin tx_data <= "M"; tx_start <= 1; state <= S_EQ; end
+                    S_EQ: begin tx_data <= "="; tx_start <= 1; state <= S_H3; end */
+
+                /*  S_H3: begin tx_data <= to_hex(dist1[15:12]); tx_start <= 1; state <= S_H2; end
+                    S_H2: begin tx_data <= to_hex(dist1[11:8]);  tx_start <= 1; state <= S_H1; end
+                    S_H1: begin tx_data <= to_hex(dist1[7:4]);   tx_start <= 1; state <= S_H0; end
+                    S_H0: begin tx_data <= to_hex(dist1[3:0]);   tx_start <= 1; state <= S_NL; end */
+
+                    S_NL: begin
+                        tx_data <= 8'h0A;
+                        tx_start <= 1;
+                        state <= IDLE;
+                    end
+                endcase
+
+                delay_cnt <= 16'd100000; // slow down output (~2ms)
+            end
+        end
+    end
+
+endmodule

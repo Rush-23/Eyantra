@@ -1,0 +1,228 @@
+module dht(
+    input clk_50M,
+    input reset,
+    inout sensor,
+    output reg [7:0] T_integral,
+    output reg [7:0] RH_integral,
+    output reg [7:0] T_decimal,
+    output reg [7:0] RH_decimal,
+    output reg [7:0] Checksum,
+    output reg data_valid
+);
+
+    initial begin
+        T_integral = 0;
+        RH_integral = 0;
+        T_decimal = 0;
+        RH_decimal = 0;
+        Checksum = 0;
+        data_valid = 0;
+    end
+//////////////////DO NOT MAKE ANY CHANGES ABOVE THIS LINE //////////////////
+
+/*
+# Team ID:          1024
+# Theme:            MazeSolver Bot
+# Author List:      Rushil V, Indiran T, Sathiya Naarayanan C, Charan Karthick A S
+# Filename:         t2a_dht.v
+# File Description: DHT sensor interface module. Generates start signal, waits for sensor
+#                   response, reads 40-bit data (RH + Temp + Checksum).
+# Global variables: N/A
+*/
+
+// read data line
+//=========================
+// State Definitions
+//=========================
+// State Definitions
+// IDLE:           idle before starting a read sequence
+// START_LOW:      host pulls line low to initiate sensor read
+// START_RELEASE:  host releases line briefly preparing to read sensor response
+// WAIT_RESPONSE:  wait for sensor to indicate it's ready / respond
+// READ_RESPONSE:  detect transition that indicates start of bit stream
+// READ_BIT_LOW:   wait for low period before each data bit
+// READ_BIT_HIGH:  measure high pulse length to determine bit value
+// COMPLETE:       finished reading 40 bits; unpack and assert data_valid
+// WAIT:           short inter-read delay
+parameter IDLE           = 0,
+          START_LOW      = 1,
+          START_RELEASE  = 2,
+          WAIT_RESPONSE  = 3,
+          READ_RESPONSE  = 4,
+          READ_BIT_LOW   = 5,
+          READ_BIT_HIGH  = 6,
+          COMPLETE       = 7,
+          WAIT           = 8;
+
+//=========================
+// Registers
+//=========================
+reg [3:0] state;
+reg [31:0] count;
+reg [5:0] bit_index;
+reg [39:0] data_reg;
+reg sensor_out_reg, sensor_dir_reg, sensor_in_reg;
+
+//=========================
+// Combinational Tri-State
+//=========================
+assign sensor = (sensor_dir_reg) ? sensor_out_reg : 1'bz;
+wire sensor_in = sensor; // always read line
+
+
+
+/*
+Purpose:
+---
+This always block implements the complete FSM for DHT sensor communication.
+It generates the start pulse, waits for the sensor ACK, reads each bit, and
+updates temperature, humidity, and checksum values.
+*/
+
+
+
+//=========================
+// Sequential FSM
+//=========================
+always @(posedge clk_50M or negedge reset) begin
+    if (!reset) begin
+        state <= IDLE;
+        count <= 0;
+        bit_index <= 0;
+        data_reg <= 0;
+        sensor_out_reg <= 1;
+        sensor_dir_reg <= 0;  // drive line high initially
+        data_valid <= 0;
+    end else begin
+        sensor_in_reg <= sensor_in;
+        case (state)
+
+            //---------------------------------------
+            IDLE: begin
+                data_valid <= 0;
+                count <= 0;
+                sensor_out_reg <= 1;
+                sensor_dir_reg <= 0;   // output high (idle)
+                state <= WAIT;
+            end
+
+            //---------------------------------------
+            WAIT: begin
+                if (count < 50_000_000)
+                    count <= count + 1;
+                else begin
+                    count <= 0;
+                    sensor_out_reg <= 0;
+                    sensor_dir_reg <= 1;   // drive line low (output)
+                    state <= START_LOW;
+                end
+            end
+
+            //---------------------------------------
+            START_LOW: begin
+                if (count < 899999) begin
+                    count <= count + 1;
+                    sensor_dir_reg <= 1;
+                    sensor_out_reg <= 0;
+                end
+                else begin
+                    count <= 0;
+                    sensor_out_reg <= 1;
+                    sensor_dir_reg <= 1;   // release line (input)
+                    state <= START_RELEASE;
+                end
+            end
+
+            //---------------------------------------
+            START_RELEASE: begin
+                if (count < 1999) begin
+                    count <= count + 1;
+                    sensor_dir_reg <= 1;
+                    sensor_out_reg <= 1;
+                end
+                else begin
+                    sensor_dir_reg <= 0;
+                    if(!sensor_in_reg) begin
+                        count <= 0;
+                        state <= WAIT_RESPONSE;
+                    end
+                end
+            end
+
+            //---------------------------------------
+            WAIT_RESPONSE: begin
+                sensor_dir_reg <= 0; // input mode
+                if (sensor_in_reg) begin
+                    count <= 0;
+                    state <= READ_RESPONSE;
+                    sensor_dir_reg <= 0;
+                end
+            end
+
+            //---------------------------------------
+            READ_RESPONSE: begin
+                sensor_dir_reg <= 0; // input mode
+                if (!sensor_in_reg) begin
+                    count <= 0;
+                    bit_index <= 0;
+                    data_reg <= 0;
+                    state <= READ_BIT_LOW;
+                end else
+                    count <= count + 1;
+            end
+
+            //---------------------------------------
+            READ_BIT_LOW: begin
+                sensor_dir_reg <= 0; // input mode
+                if (sensor_in_reg) begin
+                    count <= 0;
+                    state <= READ_BIT_HIGH;
+                end
+            end
+
+            //---------------------------------------
+            READ_BIT_HIGH: begin
+                sensor_dir_reg <= 0; // input mode
+                if (sensor_in_reg)
+                    count <= count + 1;
+                else begin
+                    if (count > 3000)
+                        data_reg <= {data_reg[38:0], 1'b1};
+                    else
+                        data_reg <= {data_reg[38:0], 1'b0};
+
+                    bit_index <= bit_index + 1;
+                    count <= 0;
+
+                    if (bit_index == 39) begin
+                        state <= COMPLETE;
+                        sensor_out_reg <= 1;
+                        sensor_dir_reg <= 0; // back to output
+                    end else begin
+                        state <= READ_BIT_LOW;
+                    end
+                end
+            end
+
+            //---------------------------------------
+            COMPLETE: begin
+                sensor_dir_reg <= 0; // output high
+                sensor_out_reg <= 1;
+                count <= count + 1;
+                if (count > 0) begin
+                    {RH_integral, RH_decimal, T_integral, T_decimal, Checksum} <= data_reg;
+                        data_valid <= 1;
+                if(count > 1)
+                        data_valid <= 0;
+                if(count > 2) begin
+                        state <= WAIT;
+                        count <= 0;
+                        end
+                    end
+                end
+        endcase
+    end
+end
+
+endmodule
+

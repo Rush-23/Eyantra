@@ -1,0 +1,199 @@
+
+module mpicontroller (
+    input  wire clk,
+    input  wire reset,
+
+    // lines coming from controller to the backbone
+    input  wire maze_done_pulse,  // maze fully completed
+    input wire mpi_start,
+
+    // wires for servo activation
+    input  wire servo_done,
+    output reg  servo_start,
+    output reg  servo_release,
+
+    // wires for moisture sensor
+  /*  input  wire moisture_done,
+    input  wire moisture_status,   // 1 = M, 0 = D
+    output reg  moisture_start, */
+
+    // wires for DHT11 sensor
+    input  wire dht_done,
+    output reg  dht_start,
+
+    // wires for BT controller
+    input  wire tx_done,
+    output reg  send_start,
+    output reg  [1:0] msg_type,
+
+    // completion signal
+    output reg  mpi_done
+); 
+
+localparam MSG_MPIM = 2'd0,
+               MSG_MM   = 2'd1,
+               MSG_TH   = 2'd2,
+               MSG_END  = 2'd3;
+
+    // ================= FSM states =================
+    localparam IDLE          = 4'd0,
+
+               SEND_MPIM    = 4'd1,
+               WAIT_MPIM    = 4'd2,
+
+               START_SERVO  = 4'd3,
+
+               START_MOIST  = 4'd4,
+               WAIT_MOIST   = 4'd5,
+
+               RELEASE_SERVO = 4'd6,
+               WAIT_SERVO_UP = 4'd7,
+
+               SEND_MM      = 4'd8,
+               WAIT_MM_TX   = 4'd9,
+
+               START_DHT    = 4'd10,
+               WAIT_DHT     = 4'd11,
+
+               SEND_TH      = 4'd12,
+               WAIT_TH_TX   = 4'd13,
+
+               SEND_END     = 4'd14,
+               WAIT_END_TX  = 4'd15;
+
+    reg [3:0] state;
+
+    // ================= FSM =================
+    always @(posedge clk or negedge reset) begin
+        if (!reset) begin
+            state <= IDLE;
+
+            servo_start    <= 1'b0;
+            servo_release  <= 1'b0;
+            moisture_start <= 1'b0;
+            dht_start      <= 1'b0;
+            send_start     <= 1'b0;
+            msg_type       <= MSG_MPIM;
+            mpi_done    <= 1'b0;
+
+        end else begin
+            // default deassertions (1-cycle pulses)
+            servo_start    <= 1'b0;
+            servo_release  <= 1'b0;
+            moisture_start <= 1'b0;
+            dht_start      <= 1'b0;
+            send_start     <= 1'b0;
+            mpi_done    <= 1'b0;
+
+            case (state)
+
+                // -------------------------------------------------
+                IDLE: begin
+                    if (maze_done_pulse)
+                        state <= SEND_END;
+                    else if (mpi_start)
+                        state <= SEND_MPIM;
+                end
+
+                // ================= DEAD-END SEQUENCE =================
+
+                SEND_MPIM: begin
+                    msg_type   <= MSG_MPIM;
+                    send_start <= 1'b1;
+                    state      <= WAIT_MPIM;
+                end
+
+                WAIT_MPIM: begin
+                    if (tx_done)
+                        state <= START_SERVO;
+                end
+
+                // ---- Servo dips and stays down ----
+                START_SERVO: begin
+                    servo_start <= 1'b1;
+                    state <= START_MOIST;
+                end
+
+                // ---- Moisture while dipped ----
+                START_MOIST: begin
+                    moisture_start <= 1'b1;
+                    state <= WAIT_MOIST;
+                end
+
+                WAIT_MOIST: begin
+                    if (moisture_done)
+                        state <= RELEASE_SERVO;
+                end
+
+                // ---- Servo returns back ----
+                RELEASE_SERVO: begin
+                    servo_release <= 1'b1;
+                    state <= WAIT_SERVO_UP;
+                end
+
+                WAIT_SERVO_UP: begin
+                    if (servo_done)
+                        state <= SEND_MM;
+                end
+
+                // ---- Send Moisture Message ----
+                SEND_MM: begin
+                    msg_type   <= MSG_MM;
+                    send_start <= 1'b1;
+                    state      <= WAIT_MM_TX;
+                end
+
+                WAIT_MM_TX: begin
+                    if (tx_done)
+                        state <= START_DHT;
+                end
+
+                // ---- DHT ----
+                START_DHT: begin
+                    dht_start <= 1'b1;
+                    state <= WAIT_DHT;
+                end
+
+                WAIT_DHT: begin
+                    if (dht_done)
+                        state <= SEND_TH;
+                end
+
+                SEND_TH: begin
+                    msg_type   <= MSG_TH;
+                    send_start <= 1'b1;
+                    state      <= WAIT_TH_TX;
+                end
+
+                WAIT_TH_TX: begin
+                    if (tx_done) begin
+                        mpi_done <= 1'b1;
+                        state <= IDLE;
+                    end
+                end
+
+                // ================= MAZE END SEQUENCE =================
+
+                SEND_END: begin
+                    msg_type   <= MSG_END;
+                    send_start <= 1'b1;
+                    state      <= WAIT_END_TX;
+                end
+
+                WAIT_END_TX: begin
+                    if (tx_done)
+                        state <= IDLE;
+                end
+
+                default: state <= IDLE;
+
+            endcase
+        end
+    end
+
+
+
+
+
+
+endmodule

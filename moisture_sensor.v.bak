@@ -1,0 +1,56 @@
+  module moisture_sensor(
+        input dout, clk50,
+        input reset,
+
+        input wire moisture_start,
+        output reg moisture_done,
+        output reg moisture_status, // 1 = M, 0 = D
+
+        output adc_cs_n, din, adc_sck,
+        output [11:0] d_out_ch0,
+        output [7:0] led_ind
+    );
+
+
+    reg [3:0] counter;
+
+    always @(posedge clk50) begin
+        counter <= counter + 1;
+    end
+
+    assign adc_sck = counter[3]; // dividing clk50 by 8 to get adc_sck
+
+    adc_controller adc_inst(
+        .dout(dout),
+        .adc_sck(adc_sck),
+        .adc_cs_n(adc_cs_n),
+        .din(din),
+        .d_out_ch0(d_out_ch0),
+        .led_ind(led_ind)
+    );
+
+    parameter THRESHOLD = 12'd300;
+
+    reg active;
+
+    always @ (posedge clk50 or negedge reset) begin
+        if(!reset) begin
+            active<=1'b0;
+            moisture_done <= 1'b0;
+            moisture_status <= 1'b0;
+        end else begin
+            moisture_done <= 1'b0;
+
+            if(moisture_start) begin
+                active<= 1'b2;
+            end
+
+            if (active) begin
+                moisture_status <= (d_out_ch0 > THRESHOLD) ? 1'b1 : 1'b0;
+                moisture_done <= 1'b1;
+                active <= 1'b0;
+            end
+        end
+    end
+
+endmodule
