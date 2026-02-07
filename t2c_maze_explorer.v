@@ -7,8 +7,9 @@ module t2c_maze_explorer (
     input wire move_done,
     output reg [2:0] move,
     input wire sense_valid,
-    output wire [3:0] dbg_col, dbg_row,
-    output wire [1:0] dbg_dir,
+    output wire  dbg_col,
+    output wire  dbg_row,
+    //output wire [1:0] dbg_dir,
 	output reg maze_ack,
     input wire ir,
     output reg maze_done,
@@ -40,6 +41,8 @@ DEADENDS    : 9
 # Global variables: N/A
 */
 
+reg [4:0] d_left, d_fwd, d_right;
+reg [4:0] best;
 
 // Parameters
 parameter ROW = 9,               // number of rows in maze
@@ -100,12 +103,31 @@ assign update_freeze = (visited[4][0] > 1);
 assign open_paths = (!left + !mid + !right);
 
 // signal that maze exploration is done (all 9 deadends found & at a junction)
-assign solve_maze = (dead_count == 9 && open_paths > 1);
+assign solve_maze = (dead_count >= 1);
 
 //integer to be used in for loop
 integer i,j;
 
+reg exploreflag;
+
 // Main Sequential Process: FSM, movement, and marking
+
+function [3:0] abs_diff;
+        input [3:0] a;
+        input [3:0] b;
+        begin
+            if (a >= b) abs_diff = a - b;
+            else        abs_diff = b - a;
+        end
+    endfunction
+
+    function [4:0] manhattan;
+        input [3:0] r;
+        input [3:0] c;
+        begin
+            manhattan = abs_diff(r, goal_row) + abs_diff(c, goal_col);
+        end
+    endfunction
 
 always @(posedge clk or negedge rst_n) begin
 
@@ -117,10 +139,11 @@ always @(posedge clk or negedge rst_n) begin
         dead_count <= 0;         // reset deadend counter
         doneflag  <= 0;          // clear done flag
         maze_done <= 0;
+        exploreflag <= 0;
         // clear visited map
-        for (i = 0; i < COL; i = i + 1)
+       /* for (i = 0; i < COL; i = i + 1)
             for (j = 0; j < ROW; j = j + 1)
-                visited[i][j] <= 0;
+                visited[i][j] <= 0; */
     end 
 
     // Normal operation
@@ -149,6 +172,7 @@ always @(posedge clk or negedge rst_n) begin
         // EXPLORE:exploration with left-hand rule
         EXPLORE: begin
             // default next position = stay put
+            exploreflag <= 1;
             next_row = curr_row;
             next_col = curr_col;
 				maze_ack        <= 1'b0;
@@ -182,6 +206,13 @@ always @(posedge clk or negedge rst_n) begin
                         next_row = curr_row + 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
+                    else if (left && mid && right) begin
+                        move     <= 3'b101;           // U_TURN
+                        next_dir      <= (dir + 2) & 2'b11;
+                        next_col = curr_col;
+                        next_row = curr_row + 1;
+                       // dead_count <= dead_count + 1; // count deadend
+                    end
                 end
 
                 // Facing East
@@ -210,6 +241,13 @@ always @(posedge clk or negedge rst_n) begin
                         next_col = curr_col - 1;
                         next_row = curr_row;
                         dead_count <= dead_count + 1; // count deadend
+                    end
+                    else if (left && mid && right) begin
+                        move     <= 3'b101;           // U_TURN
+                        next_dir      <= (dir + 2) & 2'b11;
+                        next_col = curr_col - 1;
+                        next_row = curr_row;
+                        //dead_count <= dead_count + 1; // count deadend
                     end
                 end
 
@@ -240,6 +278,14 @@ always @(posedge clk or negedge rst_n) begin
                         next_row = curr_row - 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
+                    else if (left && mid && right) begin
+                        move     <= 3'b101;           // U_TURN
+                        next_dir      <= (dir + 2) & 2'b11;
+                        next_col = curr_col;
+                        next_row = curr_row - 1;
+                       // dead_count <= dead_count + 1; // count deadend
+                    end
+                    
                 end
 
                 // Facing West
@@ -269,6 +315,13 @@ always @(posedge clk or negedge rst_n) begin
                         next_row = curr_row;
                         dead_count <= dead_count + 1; // count deadend
                     end
+                    else if (left && mid && right) begin
+                        move     <= 3'b101;           // U_TURN
+                        next_dir      <= (dir + 2) & 2'b11;
+                        next_col = curr_col + 1;
+                        next_row = curr_row;
+                       // dead_count <= dead_count + 1; // count deadend
+                end
                 end
             endcase
 
@@ -291,8 +344,12 @@ always @(posedge clk or negedge rst_n) begin
 
        
         // BACKTRACK: follow marked path with value 1 or 3 to go back to goal
-        BACKTRACK: begin
+       BACKTRACK: begin
             doneflag <= 1;  // latch that we are in backtrack mode
+            //dbg_dir <= 2'b01;
+            next_row = curr_row;
+            next_col = curr_col;
+
 
             // At goal: emit final move based on facing direction
             if (curr_col == goal_col && curr_row == goal_row) begin    
@@ -302,111 +359,65 @@ always @(posedge clk or negedge rst_n) begin
                     2'd3: move <= 3'b011; // facing West : RIGHT
                     default: move <= 3'b100; // otherwise U_TURN
                 endcase
-                maze_done = 1'b1;
             end
             // Not at goal: follow cells with visited == 1 or 3
             else begin
-                case (dir)
-                    // Facing North
-                    2'd0: begin
-                        if (!right && ((visited[curr_col+1][curr_row] == 1) || (visited[curr_col+1][curr_row] == 3))) begin
-                            move     <= 3'b011;
-                            next_dir      <= (dir + 1) & 2'b11;
-                            next_col = curr_col + 1; next_row = curr_row;
-                        end
-                        else if (!left && ((visited[curr_col-1][curr_row] == 1) || (visited[curr_col-1][curr_row] == 3))) begin
-                            move     <= 3'b010;
-                            next_dir      <= (dir + 3) & 2'b11;
-                            next_col = curr_col - 1; next_row = curr_row;
-                        end 
-                        else if (!mid && ((visited[curr_col][curr_row-1] == 1) || (visited[curr_col][curr_row-1] == 3))) begin
-                            move     <= 3'b001;
-                            next_dir      <= dir;
-                            next_row = curr_row - 1; next_col = curr_col;
-                        end 
-                        else begin
-                            move     <= 3'b100;
-                            next_dir      <= (dir + 2) & 2'b11;
-                            next_col = curr_col; next_row = curr_row + 1;
-                        end
-                    end
+                // -------- Choose based on best with YOUR tie-break --------
+                // priority: RIGHT > FORWARD > LEFT
+                if (best == 5'd31) begin
+                    // no open paths
+                    move <= 3'b100;
+                    dir  <= (dir + 2) & 2'b11;
 
-                    // Facing East
-                    2'd1: begin
-                        if (!left && ((visited[curr_col][curr_row-1] == 1) || (visited[curr_col][curr_row-1] == 3))) begin
-                            move     <= 3'b010;
-                            next_dir      <= (dir + 3) & 2'b11;
-                            next_row = curr_row - 1; next_col = curr_col;
-                        end 
-                        else if (!mid && ((visited[curr_col+1][curr_row] == 1) || (visited[curr_col+1][curr_row] == 3))) begin
-                            move     <= 3'b001;
-                            next_dir      <= dir;
-                            next_col = curr_col + 1; next_row = curr_row;
-                        end 
-                        else if (!right && ((visited[curr_col][curr_row+1] == 1) || (visited[curr_col][curr_row+1] == 3))) begin
-                            move     <= 3'b011;
-                            next_dir      <= (dir + 1) & 2'b11;
-                            next_row = curr_row + 1; next_col = curr_col;
-                        end 
-                        else if (left && mid && right) begin
-                            move     <= 3'b100;
-                            next_dir      <= (dir + 2) & 2'b11;
-                            next_col = curr_col - 1; next_row = curr_row;
-                        end
-                    end
+                    // uturn move target
+                    case (dir)
+                        2'd0: if (curr_row < ROW-1) next_row = curr_row + 1;
+                        2'd1: if (curr_col > 0)     next_col = curr_col - 1;
+                        2'd2: if (curr_row > 0)     next_row = curr_row - 1;
+                        2'd3: if (curr_col < COL-1) next_col = curr_col + 1;
+                    endcase
+                end
+                else if (d_right == best) begin
+                    // RIGHT wins ties
+                    move <= 3'b011;
+                    dir  <= (dir + 1) & 2'b11;
 
-                    // Facing South
-                    2'd2: begin
-                        if (!left && ((visited[curr_col+1][curr_row] == 1) || (visited[curr_col+1][curr_row] == 3))) begin
-                            move     <= 3'b010;
-                            next_dir      <= (dir + 3) & 2'b11;
-                            next_col = curr_col + 1; next_row = curr_row;
-                        end 
-                        else if (!mid && ((visited[curr_col][curr_row+1] == 1) || (visited[curr_col][curr_row+1] == 3))) begin
-                            move     <= 3'b001;
-                            next_dir      <= dir;
-                            next_row = curr_row + 1; next_col = curr_col;
-                        end 
-                        else if (!right && ((visited[curr_col-1][curr_row] == 1) || (visited[curr_col-1][curr_row] == 3))) begin
-                            move     <= 3'b011;
-                            next_dir      <= (dir + 1) & 2'b11;
-                            next_col = curr_col - 1; next_row = curr_row;
-                        end 
-                        else begin
-                            move     <= 3'b100;
-                            next_dir      <= (dir + 2) & 2'b11;
-                            next_col = curr_col; next_row = curr_row - 1;
-                        end
-                    end
+                    case (dir)
+                        2'd0: next_col = curr_col + 1;
+                        2'd1: next_row = curr_row + 1;
+                        2'd2: next_col = curr_col - 1;
+                        2'd3: next_row = curr_row - 1;
+                    endcase
+                end
+                else if (d_fwd == best) begin
+                    // FORWARD second
+                    move <= 3'b001;
 
-                    // Facing West
-                    2'd3: begin
-                        if (!left && ((visited[curr_col][curr_row+1] == 1) || (visited[curr_col][curr_row+1] == 3))) begin
-                            move     <= 3'b010;
-                            next_dir      <= (dir + 3) & 2'b11;
-                            next_row = curr_row + 1; next_col = curr_col;
-                        end 
-                        else if (!mid && ((visited[curr_col-1][curr_row] == 1) || (visited[curr_col-1][curr_row] == 3))) begin
-                            move     <= 3'b001;
-                            next_dir      <= dir;
-                            next_col = curr_col - 1; next_row = curr_row;
-                        end 
-                        else if (!right && ((visited[curr_col][curr_row-1] == 1) || (visited[curr_col][curr_row-1] == 3))) begin
-                            move     <= 3'b011;
-                            next_dir      <= (dir + 1) & 2'b11;
-                            next_row = curr_row - 1; next_col = curr_col;
-                        end 
-                        else begin
-                            move     <= 3'b100;
-                            next_dir      <= (dir + 2) & 2'b11;
-                            next_col = curr_col + 1; next_row = curr_row;
-                        end
-                    end
-                endcase
+                    case (dir)
+                        2'd0: next_row = curr_row - 1;
+                        2'd1: next_col = curr_col + 1;
+                        2'd2: next_row = curr_row + 1;
+                        2'd3: next_col = curr_col - 1;
+                    endcase
+                end
+                else begin
+                    // LEFT last
+                    move <= 3'b010;
+                    dir  <= (dir + 3) & 2'b11;
+
+                    case (dir)
+                        2'd0: next_col = curr_col - 1;
+                        2'd1: next_row = curr_row - 1;
+                        2'd2: next_col = curr_col + 1;
+                        2'd3: next_row = curr_row + 1;
+                    endcase
+                end
             end
 
+
             // commit new position and return to WAIT
-            
+            curr_col <= next_col;
+            curr_row <= next_row;
             state    <= WAIT_COMPLETE;
         end
 
@@ -429,7 +440,7 @@ always @(posedge clk or negedge rst_n) begin
                 dir      <= next_dir;
 					 maze_ack <= 1'b1;
 
-                if (doneflag)
+                if (solve_maze)
                      state <= BACKTRACK;
                 else
                      state <= EXPLORE;
@@ -447,9 +458,44 @@ end
         endcase
     end
 end
-assign dbg_col = curr_col; 
-assign dbg_row = curr_row; 
-assign dbg_dir = dir;
+assign dbg_col = doneflag;
+assign dbg_row = exploreflag; 
+//assign dbg_dir = dir;
+
+always@(*) begin
+                d_left  = 5'd31;
+                d_fwd   = 5'd31;
+                d_right = 5'd31;
+
+                // ---------- LEFT candidate ----------
+                case (dir)
+                    2'd0: if (!left  && curr_col > 0)       d_left = manhattan(curr_row, curr_col - 1); // W
+                    2'd1: if (!left  && curr_row > 0)       d_left = manhattan(curr_row - 1, curr_col); // N
+                    2'd2: if (!left  && curr_col < COL-1)   d_left = manhattan(curr_row, curr_col + 1); // E
+                    2'd3: if (!left  && curr_row < ROW-1)   d_left = manhattan(curr_row + 1, curr_col); // S
+                endcase
+
+                // ---------- FORWARD candidate ----------
+                case (dir)
+                    2'd0: if (!mid && curr_row > 0)         d_fwd = manhattan(curr_row - 1, curr_col); // N
+                    2'd1: if (!mid && curr_col < COL-1)     d_fwd = manhattan(curr_row, curr_col + 1); // E
+                    2'd2: if (!mid && curr_row < ROW-1)     d_fwd = manhattan(curr_row + 1, curr_col); // S
+                    2'd3: if (!mid && curr_col > 0)         d_fwd = manhattan(curr_row, curr_col - 1); // W
+                endcase
+
+                // ---------- RIGHT candidate ----------
+                case (dir)
+                    2'd0: if (!right && curr_col < COL-1)   d_right = manhattan(curr_row, curr_col + 1); // E
+                    2'd1: if (!right && curr_row < ROW-1)   d_right = manhattan(curr_row + 1, curr_col); // S
+                    2'd2: if (!right && curr_col > 0)       d_right = manhattan(curr_row, curr_col - 1); // W
+                    2'd3: if (!right && curr_row > 0)       d_right = manhattan(curr_row - 1, curr_col); // N
+                endcase
+
+                // best distance
+                best = d_left;
+                if (d_fwd   < best) best = d_fwd;
+                if (d_right < best) best = d_right;
+end
 //////////////////DO NOT MAKE ANY CHANGES BELOW THIS LINE //////////////////
 
 endmodule

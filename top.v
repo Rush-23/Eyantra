@@ -56,12 +56,12 @@ module top(
     reg [21:0] slot_counter;
     reg [2:0] movefinal;
     
-
-    assign led[4] = btx_done;
-    assign led[0] = op3_latched;
-    assign led[1] = op2_latched;
-    assign led[2] = op1_latched;
-    //assign led[5:3] = movef;
+    assign led[7] = op1_latched;
+    assign led[6] = op2_latched;
+    assign led[5] = op3_latched;
+    //assign led[7:4] = row;
+    assign led[0] = df;
+    assign led[1] = ef;
 
 
     // 40 ms silence + ~25 ms active
@@ -234,8 +234,10 @@ bt_cmd_decoder bt (
     );
 
     wire [3:0] row,col;
-    wire [1:0] dir;
+    reg [1:0] dir;
 	wire maze_ack;
+
+    wire df,ef;
 
     t2c_maze_explorer m1 (
         .clk(clk_50M),
@@ -246,9 +248,9 @@ bt_cmd_decoder bt (
         .move(movef),
         .move_done(move_done_wire),
         .sense_valid(sensor_frame_done),
-        .dbg_col(col),
-        .dbg_row(row),
-        .dbg_dir(dir),
+        .dbg_col(df),
+        .dbg_row(ef),
+        //.dbg_dir(dir),
 		.maze_ack(maze_ack),
         .ir(ir_true),
         
@@ -266,6 +268,7 @@ bt_cmd_decoder bt (
     wire [2:0] motor_cmd;
     wire       motor_enable;
     wire       move_done_wire;
+
     controller cont (
         .clk(clk_50M),
         .reset(reset),
@@ -424,7 +427,7 @@ bt_cmd_decoder bt (
 
     wire moisture_status;
     wire [11:0] moist_value;
-    assign led[7] = mpi_done;
+    //assign led[7] = mpi_done;
     reg moisture_done;
     moisture_sensor ms (
         .clk50(clk_50M),
