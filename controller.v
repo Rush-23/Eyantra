@@ -200,7 +200,7 @@ end
        if(stopped) uturn_counter <= uturn_counter + 1;
        else uturn_counter <= 0; 
     end
-
+    
     
      //arithmetic shift right 
 
@@ -209,7 +209,7 @@ end
     // =====================================================
     always @(*) begin
         enable           = 1'b0;
-        to_motordriver   = current_move;
+        to_motordriver   = steer_cmd;
         next_state       = state;
         mpi_start        = 1'b0;
 
@@ -318,7 +318,7 @@ end
 // ===================
 // Wall filtering
 // ===================
-/*reg [15:0] distL_f, distR_f;
+reg [15:0] distL_f, distR_f;
 
 always @(posedge clk or negedge reset) begin
     if (!reset) begin
@@ -343,7 +343,7 @@ wire signed [15:0] wall_error;
 assign wall_error = $signed(distR_f) - $signed(distL_f);
 
 // 2cm deadband
-localparam signed [15:0] WALL_TOL = 16'sd2000;
+localparam signed [15:0] WALL_TOL = 16'sd5000;
 
 reg [15:0] corr_timer;
 
@@ -368,7 +368,7 @@ wire allow_correction = (corr_timer > 16'd50000); // ~1ms at 50MHz
 
 //single wall parameters
 localparam SWALL_TARGET = 16'd115;   // 12cm
-localparam SWALL_TOL    = 16'd115;    // 1.5cm deadband
+localparam SWALL_TOL    = 16'd15;    // 1.5cm deadband
 localparam SWALL_MAX    = 16'd250;   // wall valid below 25cm
 
 wire signed [16:0] err_left  = $signed(dist3) - SWALL_TARGET;
@@ -383,9 +383,9 @@ always @(*) begin
     
     if(left_wall && right_wall) begin
         if (wall_error > WALL_TOL)
-            steer_cmd = DRIFT_RIGHT;   // too close to left wall
+            steer_cmd = DRIFT_LEFT;   // too close to left wall
         else if (wall_error < -WALL_TOL)
-            steer_cmd = DRIFT_LEFT;    // too close to right wall
+            steer_cmd = DRIFT_RIGHT;    // too close to right wall
         else
             steer_cmd = FORWARD;
     end 
@@ -404,11 +404,11 @@ always @(*) begin
         steer_cmd = RIGHT;     // too far → move closer
     else if (err_right < -WALL_TOL)
         steer_cmd = LEFT;      // too close → move away
-    end 
+    end */
 
     end
 
-end */
+end 
 
 endmodule
 

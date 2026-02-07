@@ -19,8 +19,8 @@ module bt_cmd_decoder (
                HYP2  = 8,
                HASH  = 9;
 
-    reg [3:0]  state;
-    reg [7:0]  num_store;
+    reg [3:0] state;
+    reg [7:0] num_store;
     reg        hold_active;
     reg [31:0] hold_counter;
 
@@ -35,12 +35,7 @@ module bt_cmd_decoder (
         end
         else if (bt_byte_valid) begin
             case (state) 
-                IDLE: begin
-                    //code_go <= 1'b0;
-                    //hold_active <= 1'b0;
-                    state <= (bt_byte == "S") ? S1:IDLE;
-                end
-
+                IDLE: state <= (bt_byte == "S") ? S1:IDLE;
                 S1: state <= (bt_byte == "T") ? T1:IDLE;
                 T1: state <= (bt_byte == "A") ? A1:IDLE;
                 A1: state <= (bt_byte == "R") ? R1:IDLE;
@@ -48,18 +43,19 @@ module bt_cmd_decoder (
                 T2: state <= (bt_byte == "-") ? HYP1:IDLE;
                 HYP1: begin
                     if(is_digit) begin
-                        ded_count <= bt_byte - "0"; // digit 0-9 is enuf
+                        num_store <= bt_byte - "0"; // digit 0-9 is enuf
                         state <= N1;
                     end else begin
                         state <= IDLE;
                     end
                 end
                 N1: state <= (bt_byte == "-") ? HYP2:IDLE;
-                HYP2: begin 
-                    if(bt_byte == "#") begin
-                    code_go <= 1'b1;
-                    state   <= IDLE;
-                    end
+                HYP2: state <= (bt_byte == "#") ? HASH:IDLE;
+                HASH: begin
+                    ded_count    <= num_store;
+                    hold_active  <= 1'b1;   // Start 5-sec hold
+                    hold_counter <= 0;
+                    state        <= IDLE;
                 end
 
                 default: ; // Ignore unknown bytes
@@ -67,21 +63,17 @@ module bt_cmd_decoder (
         end
     end
 
-   /* always @(posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             hold_counter <= 0;
-            //hold_active  <= 0;
+            hold_active  <= 0;
             code_go      <= 0;
-        end
-        else if (state == IDLE)
-            code_go <= 0; 
+        end 
         else begin
-				if (state == HASH)
-					hold_counter <= 0;
             if (hold_active) begin
                 if (hold_counter >= 32'd250_000_000) begin
                     hold_counter <= 0;
-                    //hold_active  <= 0;
+                    hold_active  <= 0;
                     code_go      <= 0;   // Done → go LOW
                 end else begin
                     hold_counter <= hold_counter + 1;
@@ -89,6 +81,6 @@ module bt_cmd_decoder (
                 end
             end
         end
-    end */
+    end
 
 endmodule

@@ -27,9 +27,9 @@ module motor (
                LEFT        = 4'b0010,
                RIGHT       = 4'b0011,
                UTURN       = 4'b0100,
-               DRIFT_LEFT   = 4'b0101,
+               DRIFT_LEFT_SOFT   = 4'b0101,
                DRIFT_LEFT_HARD   = 4'b0110,
-               DRIFT_RIGHT = 4'b0111,
+               DRIFT_RIGHT_SOFT  = 4'b0111,
                DRIFT_RIGHT_HARD  = 4'b1000,  // example, adjust encodings
                REVERSE     = 4'b1001;
 

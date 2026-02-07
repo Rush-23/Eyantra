@@ -12,6 +12,8 @@ module t2c_maze_explorer (
     output wire [1:0] dbg_dir,
 	output reg maze_ack,
     input wire ir,
+    input wire maze_start,
+    input wire [3:0] max_deadends,
     output reg maze_done,
     output reg [3:0] dead_count
 );
@@ -108,7 +110,7 @@ assign update_freeze = (visited[4][0] > 1);
 assign open_paths = (!left + !mid + !right);
 
 // signal that maze exploration is done (all 9 deadends found & at a junction)
-assign solve_maze = (dead_count >= 3);
+assign solve_maze = (dead_count >= max_deadends);
 
 //integer to be used in for loop
 integer i,j;
@@ -161,10 +163,11 @@ always @(posedge clk or negedge rst_n) begin
             //curr_row        <= 8;    // start row
             visited[4][8]   <= 0;    // clear start cell visited state
             move            <= 3'b000;
-            state           <= WAIT; // next go to WAIT
             next_row <= 8;
             next_col <= 4;
             next_dir <= 0;
+            if(maze_start)
+                state           <= WAIT; // next go to WAIT
         end
 
         // WAIT: choose between EXPLORE and BACKTRACK
@@ -419,9 +422,9 @@ always @(posedge clk or negedge rst_n) begin
                 
 					 maze_ack <= 1'b1;
 
-                if (solve_maze)
-                     state <= BACKTRACK;
-                else
+               // if (solve_maze)
+                //     state <= BACKTRACK;
+                //else
                      state <= EXPLORE;
     end
 end

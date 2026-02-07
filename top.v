@@ -56,8 +56,7 @@ module top(
     reg [21:0] slot_counter;
     reg [2:0] movefinal;
     
-    assign led[7:4] = df;
-    assign led[3:0] = ef;
+    assign led[0] = maze_start;
 
 
     // 40 ms silence + ~25 ms active
@@ -147,8 +146,25 @@ uart_rx uart (
 reg [7:0] bt_byte_d;
 reg       bt_byte_valid_d;
 
-always @(posedge clk_50M or negedge reset) begin
-    if (!reset) begin
+reg reset_n;
+
+localparam RESET_CYCLES = 500_000; // 10 ms at 50 MHz
+
+reg [18:0] reset_counter;  // enough bits for 500,000
+
+always @(posedge clk_50M) begin
+    if (reset_counter < RESET_CYCLES) begin
+            reset_counter <= reset_counter + 1'b1;
+            reset_n <= 1'b0;       // hold reset active
+    end else begin
+            reset_n <= 1'b1;       // release reset
+    end
+ end
+
+
+
+always @(posedge clk_50M or negedge reset_n) begin
+    if (!reset_n) begin
         bt_byte         <= 8'd0;
         bt_byte_d       <= 8'd0;
         bt_byte_valid   <= 1'b0;
@@ -158,8 +174,8 @@ always @(posedge clk_50M or negedge reset) begin
         rx_complete_d <= rx_complete;
 
         // Capture UART byte on rx_complete rising edge
+        bt_byte_d       <= rx_msg;
         if (rx_complete && !rx_complete_d) begin
-            bt_byte_d       <= rx_msg;
             bt_byte_valid_d <= 1'b1;
         end else begin
             bt_byte_valid_d <= 1'b0;
@@ -176,13 +192,15 @@ end
 // BLE command decoder
 bt_cmd_decoder bt (
     .clk(clk_50M),
-    .rst_n(reset),
+    .rst_n(reset_n),
     .bt_byte(bt_byte),
     .bt_byte_valid(bt_byte_valid),
-    .move_cmd(bt_move),
-    .manual_mode(manual_mode)
+    .code_go(maze_start),
+    .ded_count(dead_count_max)
 );
 
+wire maze_start;
+wire [3:0] dead_count_max;
 // Arbitration
     wire [2:0] final_move;
     assign final_move = manual_mode ? bt_move : movef;
@@ -249,7 +267,8 @@ bt_cmd_decoder bt (
         .dbg_dir(dir),
 		.maze_ack(maze_ack),
         .ir(ir_true),
-        
+        .maze_start(maze_start),
+        .max_deadends(dead_count_max),        
         .maze_done(maze_done),
         .dead_count(dead_count)
     );
