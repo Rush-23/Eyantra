@@ -56,12 +56,8 @@ module top(
     reg [21:0] slot_counter;
     reg [2:0] movefinal;
     
-    assign led[7] = op1_latched;
-    assign led[6] = op2_latched;
-    assign led[5] = op3_latched;
-    //assign led[7:4] = row;
-    assign led[0] = df;
-    assign led[1] = ef;
+    assign led[7:4] = df;
+    assign led[3:0] = ef;
 
 
     // 40 ms silence + ~25 ms active
@@ -234,10 +230,10 @@ bt_cmd_decoder bt (
     );
 
     wire [3:0] row,col;
-    reg [1:0] dir;
+    wire [1:0] dir;
 	wire maze_ack;
 
-    wire df,ef;
+    wire [3:0] df,ef;
 
     t2c_maze_explorer m1 (
         .clk(clk_50M),
@@ -250,7 +246,7 @@ bt_cmd_decoder bt (
         .sense_valid(sensor_frame_done),
         .dbg_col(df),
         .dbg_row(ef),
-        //.dbg_dir(dir),
+        .dbg_dir(dir),
 		.maze_ack(maze_ack),
         .ir(ir_true),
         
