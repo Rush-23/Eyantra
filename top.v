@@ -266,7 +266,6 @@ bt_cmd_decoder bt (
     wire [2:0] motor_cmd;
     wire       motor_enable;
     wire       move_done_wire;
-
     controller cont (
         .clk(clk_50M),
         .reset(reset),

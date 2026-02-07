@@ -11,7 +11,7 @@ module motor (
     input  wire        clk_50,
     input  wire        rst,
 
-    input  wire [2:0]  move_cmd,
+    input  wire [3:0]  move_cmd,
     input  wire        enable,
 
     output wire        l_in1,
@@ -22,14 +22,16 @@ module motor (
     output reg         en_r
 );
 
-    localparam STOP        = 3'b000,
-               FORWARD     = 3'b001,
-               LEFT        = 3'b010,
-               RIGHT       = 3'b011,
-               UTURN       = 3'b100,
-               DRIFT_LEFT  = 3'b101,
-               DRIFT_RIGHT = 3'b110,
-               REVERSE     = 3'b111;
+    localparam STOP        = 4'b0000,
+               FORWARD     = 4'b0001,
+               LEFT        = 4'b0010,
+               RIGHT       = 4'b0011,
+               UTURN       = 4'b0100,
+               DRIFT_LEFT_SOFT   = 4'b0101,
+               DRIFT_LEFT_HARD   = 4'b0110,
+               DRIFT_RIGHT_SOFT  = 4'b0111,
+               DRIFT_RIGHT_HARD  = 4'b1000,  // example, adjust encodings
+               REVERSE     = 4'b1001;
 
     reg l1, l2, r1, r2;
 
@@ -54,6 +56,9 @@ module motor (
     wire speed_25 = (count < 8'd128);
     wire speed_50 = (count < 8'd128);
     wire speed_75 = (count < 8'd165);
+    wire speed_40 = (count < 8'd140); 
+    wire speed_60 = (count < 8'd170);
+
 
     // =========================
     // Direction control
@@ -86,12 +91,14 @@ module motor (
                 r1 <= 1; r2 <= 0;
             end
 
-            DRIFT_LEFT: begin
+            DRIFT_LEFT_SOFT,
+            DRIFT_LEFT_HARD: begin
                 l1 <= 1; l2 <= 0;
                 r1 <= 0; r2 <= 1;
             end
 
-            DRIFT_RIGHT: begin
+            DRIFT_RIGHT_SOFT,
+            DRIFT_RIGHT_HARD: begin
                 l1 <= 0; l2 <= 1;
                 r1 <= 1; r2 <= 0;
             end
@@ -142,14 +149,24 @@ end
                     en_r = speed_25;
                 end
 
-                DRIFT_LEFT: begin
-                    en_l = speed_75;
+                DRIFT_LEFT_SOFT: begin
+                    en_l = speed_40;
                     en_r = speed_50;
                 end
 
-                DRIFT_RIGHT: begin
+                DRIFT_LEFT_HARD: begin
+                    en_l = speed_60;
+                    en_r = speed_50;
+                end
+
+                DRIFT_RIGHT_SOFT: begin
                     en_l = speed_50;
-                    en_r = speed_75;
+                    en_r = speed_40;
+                end
+
+                DRIFT_RIGHT_HARD: begin
+                    en_l = speed_50;
+                    en_r = speed_60;
                 end
 
                 UTURN: begin

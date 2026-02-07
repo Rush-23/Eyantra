@@ -1,4 +1,4 @@
-/*
+    /*
 # Team ID:          1024
 # Theme:            MazeSolver Bot
 # Author List:      Rushil V, Indiran T, Sathiya Naarayanan C, Charan Karthick A S
@@ -20,7 +20,7 @@ module controller (
 
     input  wire  [15:0] dist1,dist2,dist3,
 
-    output reg  [2:0] to_motordriver, // to motor driver
+    output reg  [3:0] to_motordriver, // to motor driver
     output reg        enable,
     output reg        move_done,
 	input  wire maze_ack,
@@ -51,18 +51,16 @@ module controller (
     // =====================================================
     // Commands
     // =====================================================
-    localparam STOP        = 3'b000,
-               FORWARD     = 3'b001,
-               LEFT        = 3'b010,
-               RIGHT       = 3'b011,
-               UTURN       = 3'b100,
-               DRIFT_LEFT  = 3'b101,
-               DRIFT_RIGHT = 3'b110,
-               REVERSE     = 3'b111;
-
-    
-
-    
+    localparam STOP        = 4'b0000,
+               FORWARD     = 4'b0001,
+               LEFT        = 4'b0010,
+               RIGHT       = 4'b0011,
+               UTURN       = 4'b0100,
+               DRIFT_LEFT_SOFT      = 4'b0101,
+               DRIFT_LEFT_HARD      = 4'b0110,
+               DRIFT_RIGHT_SOFT     = 4'b0111,
+               DRIFT_RIGHT_HARD     = 4'b1000,
+               REVERSE     = 4'b1001;
 
     // =====================================================
     // FSM states
@@ -115,54 +113,6 @@ module controller (
     reg [25:0] wait_counter;
     reg [32:0] post_for_counter;
     reg [31:0] uturn_counter = 32'd0;
-
-
-        // =====================================================
-    // Drift correction parameters
-    // =====================================================
-    localparam WALL_TH   = 16'd250;   // 25 cm
-    localparam DEADZONE  = 16'd20;    // 2 cm
-    localparam DESIRED   = 16'd150;   // 15 cm
-
-    // =====================================================
-    // Drift detection logic
-    // =====================================================
-    wire left_wall  = (dist1 < WALL_TH);
-    wire right_wall = (dist3 < WALL_TH);
-
-    reg signed [17:0] error;
-    reg signed [17:0] error_dz;
-
-    reg drift_left;
-    reg drift_right;
-
-    always @(*) begin
-        if (left_wall && right_wall)
-            error = $signed(dist1) - $signed(dist3);
-        else if (left_wall)
-            error = DESIRED - $signed(dist1);
-        else if (right_wall)
-            error = $signed(dist3) - DESIRED;
-        else
-            error = 0;
-    end
-
-    always @(*) begin
-        if (error > -DEADZONE && error < DEADZONE)
-            error_dz = 0;
-        else
-            error_dz = error;
-    end
-
-    always @(*) begin
-        drift_left  = 1'b0;
-        drift_right = 1'b0;
-
-        if (error_dz > 0)
-            drift_left = 1'b1;    // too close to RIGHT wall
-        else if (error_dz < 0)
-            drift_right = 1'b1;   // too close to LEFT wall
-    end
 
     // =====================================================
     // State register
@@ -346,13 +296,18 @@ end
 
         endcase
     end
-/*
-    reg [15:0] wall_d1,wall_d2;
+
+    // =========================
+    // Drift level output
+    // =========================
+
+
+    /*reg [15:0] wall_d1,wall_d2;
     reg [31:0] align_start_ticks
     reg align_phase;
 
-    wire [15:0] align_dist = (current_move == LEFT) ? dist3 : (currrent_move == RIGHT) ? dist1 : dist3;
-*/
+    wire [15:0] align_dist = (current_move == LEFT) ? dist3 : (current_move == RIGHT) ? dist1 : dist3;
+    */
 
 // ===================
 // Wall filtering
@@ -382,7 +337,11 @@ wire signed [15:0] wall_error;
 assign wall_error = $signed(distR_f) - $signed(distL_f);
 
 // 2cm deadband
-localparam signed [15:0] WALL_TOL1 = 16'sd20, WALL_TOL2 = 16'sd10; 
+//localparam signed [15:0] WALL_TOL1 = 16'sd20, WALL_TOL2 = 16'sd10; 
+
+localparam signed [15:0] WALL_TOL_MINOR = 16'sd10;  // ~1 cm
+localparam signed [15:0] WALL_TOL_MAJOR = 16'sd30;  // ~3 cm
+
 
 reg [15:0] corr_timer;
 
@@ -398,56 +357,92 @@ always @(posedge clk or negedge reset) begin
 end
 
 
-
-
-
 wire allow_correction = (corr_timer > 16'd50000); // ~1ms at 50MHz
 
-reg [2:0] steer_cmd;
+wire emergency_left  = (dist3 < 10);   // ~7 cm
+wire emergency_right = (dist1 < 10);
+
+reg [3:0] steer_cmd;
 
 //single wall parameters
 localparam SWALL_TARGET = 16'd115;   // 12cm
-localparam SWALL_TOL    = 16'd115;    // 1.5cm deadband
+localparam SWALL_TOL    = 16'd15;    // 1.5cm deadband
 localparam SWALL_MAX    = 16'd250;   // wall valid below 25cm
 
-wire signed [16:0] err_left  = $signed(dist3) - SWALL_TARGET;
-wire signed [16:0] err_right = SWALL_TARGET - $signed(dist1);
+wire signed [16:0] err_left  = $signed(distL_f) - SWALL_TARGET;
+wire signed [16:0] err_right = SWALL_TARGET - $signed(distR_f);
 
 
 always @(*) begin
-    steer_cmd = current_move;   // default: do what FSM wants
+    steer_cmd = {1'b0,current_move};   // default: do what FSM wants
 
     if ((state == MOVING || state == POST_FORWARD) &&
         (current_move == FORWARD) && allow_correction) begin
     
-    if(left_wall && right_wall) begin
-        if (wall_error > WALL_TOL)
-            steer_cmd = DRIFT_RIGHT_Less;   // too close to left wall
-        else if (wall_error < -WALL_TOL)
-            steer_cmd = DRIFT_LEFT_High;    // too close to right wall
+    if (left_wall && right_wall) begin
+
+        // Too close to LEFT wall → drift RIGHT
+        if (wall_error > WALL_TOL_MINOR && wall_error < WALL_TOL_MAJOR)
+            steer_cmd = DRIFT_RIGHT_SOFT;
+    
+        else if (wall_error >= WALL_TOL_MAJOR)
+            steer_cmd = DRIFT_RIGHT_HARD;
+    
+        // Too close to RIGHT wall → drift LEFT
+        else if (wall_error < -WALL_TOL_MINOR && wall_error > -WALL_TOL_MAJOR)
+            steer_cmd = DRIFT_LEFT_SOFT;
+    
+        else if (wall_error <= -WALL_TOL_MAJOR)
+            steer_cmd = DRIFT_LEFT_HARD;
+    
         else
             steer_cmd = FORWARD;
     end
 
-    /*else if (left_wall && !right_wall) begin
-    // Track left wall
-    if (err_left > WALL_TOL)
-        steer_cmd = LEFT;      // too far → move closer
-    else if (err_left < -WALL_TOL)
-        steer_cmd = RIGHT;     // too close → move away
-    end
-
-    else if (right_wall && !left_wall) begin
-    // Track right wall
-    if (err_right > WALL_TOL)
-        steer_cmd = RIGHT;     // too far → move closer
-    else if (err_right < -WALL_TOL)
-        steer_cmd = LEFT;      // too close → move away
-    end */
+        if (emergency_left)
+            steer_cmd = DRIFT_RIGHT_HARD;
+        else if (emergency_right)
+            steer_cmd = DRIFT_LEFT_HARD;
 
     end
 
+
+    // ===================
+    // SINGLE WALL FOLLOWING
+    // ===================
+
+    // LEFT wall only → maintain fixed distance from left wall
+    else if (left_wall && !right_wall && (distL_f < SWALL_MAX)) begin
+
+        // Too close to LEFT wall → move RIGHT
+        if (err_left < -SWALL_TOL)
+            steer_cmd = DRIFT_RIGHT_HARD;
+
+        // Too far from LEFT wall → move LEFT
+        else if (err_left > SWALL_TOL)
+            steer_cmd = DRIFT_LEFT_SOFT;
+
+        else
+            steer_cmd = FORWARD;
+        end
+
+    // RIGHT wall only → maintain fixed distance from right wall
+    else if (right_wall && !left_wall &&
+             (distR_f < SWALL_MAX)) begin
+
+        // Too close to RIGHT wall → move LEFT
+        if (err_right < -SWALL_TOL)
+            steer_cmd = DRIFT_LEFT_HARD;
+
+        // Too far from RIGHT wall → move RIGHT
+        else if (err_right > SWALL_TOL)
+            steer_cmd = DRIFT_RIGHT_SOFT;
+
+        else
+            steer_cmd = FORWARD;
+    end
 end
+
 
 endmodule
 
