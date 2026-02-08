@@ -142,6 +142,7 @@ module mpicontroller (
                     servo_start <= 0;
                     if (moisture_done) begin
                         state <= RELEASE_SERVO;
+                        send_start <= 0;
                     end
                 end
 
@@ -154,7 +155,7 @@ module mpicontroller (
                 WAIT_SERVO_UP: begin
                     if (servo_done) begin
                         state <= SEND_MM;
-                        send_start <= 1'b1; //send moisture 
+                        //send_start <= 1'b1; //send moisture 
                     end
                 end
 
@@ -185,12 +186,12 @@ module mpicontroller (
 
                 SEND_TH: begin
                     msg_type   <= MSG_TH;
-                    send_start <= 1'b1;
+                    //send_start <= 1'b1;
                     state      <= WAIT_TH_TX;
                 end
 
                 WAIT_TH_TX: begin
-                    //send_start <= 1'b0;
+                    send_start <= 1'b0;
                     //if (tx_done) begin
                         mpi_done <= 1'b1;
                         state <= RESET_MDONE;
