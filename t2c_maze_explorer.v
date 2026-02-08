@@ -15,7 +15,7 @@ module t2c_maze_explorer (
     input wire maze_start,
     input wire [3:0] max_deadends,
     output reg maze_done,
-    output reg [3:0] dead_count
+    output reg [3:0] mpi_id
 );
 
 /*
@@ -60,6 +60,7 @@ parameter ROW = 9,               // number of rows in maze
 wire update_freeze;              // prevents incrementing visited count while exploring further
 wire solve_maze;                 // indicates exploration phase is complete
 wire [1:0] open_paths;           // number of open directions at current cell
+reg [3:0] dead_count;
 
 
 // Registers
@@ -163,6 +164,7 @@ always @(posedge clk or negedge rst_n) begin
             //curr_row        <= 8;    // start row
             visited[4][8]   <= 0;    // clear start cell visited state
             move            <= 3'b000;
+            mpi_id <= 4'b0;
             next_row <= 8;
             next_col <= 4;
             next_dir <= 0;
@@ -215,6 +217,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col;
                         next_row <= curr_row + 1;
+                        mpi_id <= mpi_id + 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
                     else if (left && mid && right) begin
@@ -222,6 +225,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col;
                         next_row <= curr_row + 1;
+                        mpi_id <= mpi_id + 1;
                        // dead_count <= dead_count + 1; // count deadend
                     end
                 end
@@ -251,6 +255,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col - 1;
                         next_row <= curr_row;
+                        mpi_id <= mpi_id + 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
                     else if (left && mid && right) begin
@@ -258,6 +263,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col - 1;
                         next_row <= curr_row;
+                        mpi_id <= mpi_id + 1;
                         //dead_count <= dead_count + 1; // count deadend
                     end
                 end
@@ -286,6 +292,7 @@ always @(posedge clk or negedge rst_n) begin
                         move     <= 3'b100;           // U_TURN
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col;
+                        mpi_id <= mpi_id + 1;
                         next_row <= curr_row - 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
@@ -294,6 +301,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col;
                         next_row <= curr_row - 1;
+                        mpi_id <= mpi_id + 1;
                        // dead_count <= dead_count + 1; // count deadend
                     end
                     
@@ -324,6 +332,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col + 1;
                         next_row <= curr_row;
+                        mpi_id <= mpi_id + 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
                     else if (left && mid && right) begin
@@ -331,6 +340,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col + 1;
                         next_row <= curr_row;
+                        mpi_id <= mpi_id + 1;
                        // dead_count <= dead_count + 1; // count deadend
                 end
                 end
@@ -364,6 +374,8 @@ always @(posedge clk or negedge rst_n) begin
                     // no open paths
                     move <= 3'b100;
                     next_dir  <= (dir + 2) & 2'b11;
+                    mpi_id <= mpi_id + 1;
+                    dead_count <= dead_count + 1;
 
                     // uturn move target
                     case (dir)

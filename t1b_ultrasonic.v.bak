@@ -47,6 +47,11 @@ module t1b_ultrasonic(
     reg op_reg;              // Internal register for OP
     reg trig_sent;
 
+    reg [15:0] dist_filtered;
+    reg [15:0] last_valid;
+    reg [1:0]  stable_count;
+
+
     // ==========================================
     // State Machine Update & Counter
     // ==========================================
@@ -113,6 +118,7 @@ module t1b_ultrasonic(
 
             WAIT_DELAY: begin
                 // Wait 12ms before next measurement
+                
                 if (counter >= WAIT_TIME) 
                     next_state = TRIGGER;
             end
@@ -159,11 +165,43 @@ module t1b_ultrasonic(
                     // Calculation: 
                     // Dist_mm = (counter * 0.00343)
                     // Approximation: (counter * 225) / 65536
-                    dist_reg <= (echo_width * 230) >> 16;
+                    reg [15:0] raw_dist;
+                    raw_dist = (echo_width * 230) >> 16;
+
+// difference between readings
+                    wire [15:0] diff;
+                    assign diff = (raw_dist > last_valid) ? 
+                                (raw_dist - last_valid) : 
+                                (last_valid - raw_dist);
+
+                    // ---------- FILTER ----------
+
+                    // If change small (<120mm) → accept immediately
+                    if(diff < 120) begin
+                        dist_filtered <= raw_dist;
+                        last_valid <= raw_dist;
+                        stable_count <= 0;
+                    end
+
+                    // If big jump → require 2 stable repeats
+                    else begin
+                        if(raw_dist == last_valid) begin
+                            if(stable_count >= 2) begin
+                                dist_filtered <= raw_dist;   // accept new far value
+                            end else begin
+                                stable_count <= stable_count + 1;
+                            end
+                        end else begin
+                            stable_count <= 0; // new value different → wait
+                        end
+                    end
+
+                    dist_reg <= dist_filtered;
+
                     
                     // Object Present Logic (Threshold < 70mm)
                     // Added check > 0 to ensure 0mm (timeout/error) isn't counted as an object
-                    if ( ((echo_width * 230) >> 16) < 220 && ((echo_width * 230) >> 16) > 0 )
+                    if ( dist_reg < 220 && (dist_reg >> 16) > 0 )
                         op_reg <= 1'b1; 
                     else
                         op_reg <= 1'b0;

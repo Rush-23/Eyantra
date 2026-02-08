@@ -97,7 +97,7 @@ end
             sensor_sel   <= S1;
             slot_counter <= 0;
         end else begin
-            if (slot_counter >= 22'd4_000_000) 
+            if (slot_counter >= 22'd8_00_000) 
             begin
                 slot_counter <= 0;
                 sensor_sel <= (sensor_sel == S3) ? S1 : sensor_sel + 1'b1;
@@ -212,14 +212,14 @@ wire [3:0] dead_count_max;
     wire en1 = (sensor_sel == S1);
     wire en2 = (sensor_sel == S2);
     wire en3 = (sensor_sel == S3);
-    wire sensor_frame_done = (sensor_sel == S3 && slot_counter == 22'd3_999_998);
+    wire sensor_frame_done = (sensor_sel == S3 && slot_counter == 22'd7_99_998);
 
     // ================================
     // Ultrasonic instances
     // ================================
     t1b_ultrasonic u1 (
         .clk_50M(clk_50M),
-        .reset  (reset),
+        .reset  (reset_n),
         .enable (en1),
         .echo_rx(echo1),
         .trig   (trig1),
@@ -229,7 +229,7 @@ wire [3:0] dead_count_max;
 
     t1b_ultrasonic u2 (
         .clk_50M(clk_50M),
-        .reset  (reset),
+        .reset  (reset_n),
         .enable (en2),
         .echo_rx(echo2),
         .trig   (trig2),
@@ -239,7 +239,7 @@ wire [3:0] dead_count_max;
 
     t1b_ultrasonic u3 (
         .clk_50M(clk_50M),
-        .reset  (reset),
+        .reset  (reset_n),
         .enable (en3),
         .echo_rx(echo3),
         .trig   (trig3),
@@ -270,7 +270,7 @@ wire [3:0] dead_count_max;
         .maze_start(maze_start),
         .max_deadends(dead_count_max),        
         .maze_done(maze_done),
-        .dead_count(dead_count)
+        .mpi_id(dead_count)
     );
 
     //assign led[7:6] = msg_type;
