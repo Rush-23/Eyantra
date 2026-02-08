@@ -372,8 +372,9 @@ wire signed [16:0] err_right = SWALL_TARGET - $signed(dist1);
 always @(*) begin
     steer_cmd = current_move;   // default: do what FSM wants
 
-    if ((state == POST_FORWARD || (state == MOVING && current_move == FORWARD)) && allow_correction) 
+    if ((state == POST_FORWARD || state == MOVING) && (to_motordriver == FORWARD) && allow_correction) 
     begin
+            if(current_move == FORWARD) begin
                 if(avg_turn < 3000) 
                 begin
                     if(left_wall && right_wall) 
@@ -387,6 +388,18 @@ always @(*) begin
                     end 
                 end
             end
+            else begin
+                    if(left_wall && right_wall) 
+                    begin
+                        if (wall_error > WALL_TOL)
+                            steer_cmd = DRIFT_LEFT;   // too close to left wall
+                        else if (wall_error < -WALL_TOL)
+                            steer_cmd = DRIFT_RIGHT;    // too close to right wall
+                        else
+                            steer_cmd = FORWARD;
+                end 
+            end
+    end
 end
 
 
