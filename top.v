@@ -97,7 +97,7 @@ end
             sensor_sel   <= S1;
             slot_counter <= 0;
         end else begin
-            if (slot_counter >= 22'd8_00_000) 
+            if (slot_counter >= 22'd50_000_000) 
             begin
                 slot_counter <= 0;
                 sensor_sel <= (sensor_sel == S3) ? S1 : sensor_sel + 1'b1;
@@ -212,7 +212,7 @@ wire [3:0] dead_count_max;
     wire en1 = (sensor_sel == S1);
     wire en2 = (sensor_sel == S2);
     wire en3 = (sensor_sel == S3);
-    wire sensor_frame_done = (sensor_sel == S3 && slot_counter == 22'd7_99_998);
+    wire sensor_frame_done = (sensor_sel == S3 && slot_counter == 22'd49_999_998);
 
     // ================================
     // Ultrasonic instances
