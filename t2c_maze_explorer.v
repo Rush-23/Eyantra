@@ -188,7 +188,7 @@ always @(posedge clk or negedge rst_n) begin
             exploreflag <= 1;
             //next_row = curr_row;
             //next_col = curr_col;
-				maze_ack        <= 1'b0;
+			maze_ack        <= 1'b0;
 
             // Left-hand rule: LEFT → FORWARD → RIGHT, else U_TURN
             case (dir)
@@ -432,7 +432,10 @@ always @(posedge clk or negedge rst_n) begin
 
                 move     <= 3'b000;
                 
-					 maze_ack <= 1'b1;
+				maze_ack <= 1'b1;
+
+                if(open_paths == 3)
+                    maze_done <= 1'b1;
 
                // if (solve_maze)
                 //     state <= BACKTRACK;

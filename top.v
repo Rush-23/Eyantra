@@ -436,7 +436,8 @@ wire [3:0] dead_count_max;
         .temp_int(temp_int),
         .temp_decimal(temp_decimal),
         .hum_int(hum_int),
-        .hum_decimal(hum_decimal)
+        .hum_decimal(hum_decimal),
+        .maze_done(maze_done)
 
     );
 

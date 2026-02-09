@@ -21,7 +21,8 @@ module bt_tx_control (
     input  wire [1:0] msg_type,
     output reg  btx_done,
     input  wire send_start,
-    input  wire mord
+    input  wire mord,
+    input  wire maze_done
 );
 
     reg [7:0] state;
@@ -74,12 +75,14 @@ module bt_tx_control (
                     IDLE: begin
                     //btx_done <=0;
                     //tx_start <= 0;
+                    if(maze_done)
+                        state <= 114;
                     if (send_start) begin
                         case (msg_type)
                             MSG_MPIM: state <= 2;
                           //  MSG_MM:   state <= 12;
-                          /*  MSG_TH:   state <= 40;
-                            MSG_END:  state <= 70; */
+                          /*  MSG_TH:   state <= 40; */
+                            
                         endcase
                     end
                 end
@@ -163,6 +166,21 @@ module bt_tx_control (
                     110: begin tx_data <= "X"; tx_start <= 1; state <= S_NL2; end
                     S_NL2: begin tx_data <= 8'h0A; tx_start <= 1; state <= 113; end
                     113: begin tx_data <= 0; state <= IDLE; end
+
+                    114: begin tx_data <= "E" ; tx_start <= 1; state <= 115; end
+                    115: begin tx_data <= "X" ; tx_start <= 1; state <= 116; end
+                    116: begin tx_data <= "N" ; tx_start <= 1; state <= 117; end
+                    117: begin tx_data <= "X" ; tx_start <= 1; state <= 118; end
+                    118: begin tx_data <= "D" ; tx_start <= 1; state <= 119; end
+                    119: begin tx_data <= "X" ; tx_start <= 1; state <= 120; end
+                    120: begin tx_data <= "-" ; tx_start <= 1; state <= 121; end
+                    121: begin tx_data <= "X" ; tx_start <= 1; state <= 122; end
+                    122: begin tx_data <= "#" ; tx_start <= 1; state <= 123; end
+                    123: begin tx_data <= "X" ; tx_start <= 1; state <= 124; end
+                    124: begin tx_start <= 0; state <= 124; end
+
+                    
+                    
                     
                     // ---------- END ----------
                    /* 70: begin tx_data <= "E"; tx_start <= 1; state <= 71; end

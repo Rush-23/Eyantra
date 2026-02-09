@@ -103,9 +103,9 @@ module mpicontroller (
 
                 // -------------------------------------------------
                 IDLE: begin
-                    if (maze_done_pulse)
-                        state <= SEND_END;
-                    else if (mpi_start)
+                    //if (maze_done_pulse)
+                    //    state <= SEND_END;
+                    /*else*/ if (mpi_start)
                         state <= SEND_MPIM;
                 end
 

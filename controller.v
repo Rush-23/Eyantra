@@ -315,6 +315,9 @@ end
     wire [15:0] align_dist = (current_move == LEFT) ? dist3 : (currrent_move == RIGHT) ? dist1 : dist3;
 */
 
+// ===================
+// Wall filtering
+// ===================
 reg [15:0] distL_f, distR_f;
 
 always @(posedge clk or negedge reset) begin
@@ -340,14 +343,14 @@ wire signed [15:0] wall_error;
 assign wall_error = $signed(distR_f) - $signed(distL_f);
 
 // 2cm deadband
-localparam signed [15:0] WALL_TOL = 16'sd20;
+localparam signed [15:0] WALL_TOL = 16'sd15;
 
 reg [15:0] corr_timer;
 
 always @(posedge clk or negedge reset) begin
     if (!reset)
         corr_timer <= 0;
-    else if (state == MOVING || state == POST_FORWARD)
+    else if ((state == MOVING && current_move == FORWARD)|| state == POST_FORWARD) //cchanged
         corr_timer <= corr_timer + 1;
     else if (steer_cmd != FORWARD)
         corr_timer <= 0;
@@ -355,193 +358,132 @@ always @(posedge clk or negedge reset) begin
         corr_timer <= 0;
 end
 
+wire allow_correction = (corr_timer > 16'd5_000_000); // ~1ms at 50MHz
 
+//single wall parameters
+localparam SWALL_TARGET = 16'd115;   // 12cm
+localparam SWALL_TOL    = 16'd40;    // 1.5cm deadband
+localparam SWALL_MAX    = 16'd250;   // wall valid below 25cm
 
-
-
-wire allow_correction = (corr_timer > 16'd50000); // ~1ms at 50MHz
-
-
-
-// ==========================
-// Single wall follow tuning
-// ==========================
-localparam [15:0] SWALL_TARGET   = 16'd115;  // 12cm
-localparam [15:0] SWALL_TOL      = 16'd20;   // 2cm deadband
-localparam [15:0] SWALL_MAX      = 16'd250;  // valid wall below 25cm
-
-// timing @ 50MHz
-localparam [19:0] SAMPLE_TICKS   = 20'd500000;  // 10ms
-localparam [19:0] PULSE_TICKS    = 20'd150000;  // 3ms drift pulse
-
-reg [19:0] sample_timer;
-reg [19:0] pulse_timer;
-
-reg [15:0] prev_distL;
-reg [15:0] prev_distR;
-
-reg        pulse_active;
-reg [2:0]  pulse_cmd;   // DRIFT_LEFT / DRIFT_RIGHT / FORWARD
-
-
-always @(posedge clk or negedge reset) begin
-    if (!reset) begin
-        sample_timer <= 0;
-        pulse_timer  <= 0;
-        pulse_active <= 0;
-        pulse_cmd    <= FORWARD;
-
-        prev_distL   <= 0;
-        prev_distR   <= 0;
-
-    end else begin
-
-        // default timers
-        if (state == MOVING || state == POST_FORWARD) begin
-
-            // --------
-            // SAMPLE timer (every 10ms)
-            // --------
-            if (sample_timer < SAMPLE_TICKS)
-                sample_timer <= sample_timer + 1;
-            else
-                sample_timer <= 0;
-
-            // --------
-            // PULSE timer (drift pulse length)
-            // --------
-            if (pulse_active) begin
-                if (pulse_timer < PULSE_TICKS)
-                    pulse_timer <= pulse_timer + 1;
-                else begin
-                    pulse_timer  <= 0;
-                    pulse_active <= 0;
-                    pulse_cmd    <= FORWARD;
-                end
-            end
-
-            // store previous distances at sample boundary
-            if (sample_timer == SAMPLE_TICKS) begin
-                prev_distL <= distL_f;
-                prev_distR <= distR_f;
-            end
-
-        end else begin
-            // not moving: reset everything
-            sample_timer <= 0;
-            pulse_timer  <= 0;
-            pulse_active <= 0;
-            pulse_cmd    <= FORWARD;
-        end
-    end
-end
-
-
-wire signed [16:0] e_left  = $signed(distL_f) - $signed(SWALL_TARGET);
-wire signed [16:0] e_right = $signed(SWALL_TARGET) - $signed(distR_f);
-
-// Trend (distance change)
-wire signed [16:0] d_left  = $signed(distL_f) - $signed(prev_distL);
-wire signed [16:0] d_right = $signed(distR_f) - $signed(prev_distR);
-
-// Wall valid
-wire left_valid  = left_wall  && (distL_f < SWALL_MAX);
-wire right_valid = right_wall && (distR_f < SWALL_MAX);
-
-always @(posedge clk or negedge reset) begin
-    if (!reset) begin
-        // nothing
-    end else begin
-        // Only decide at sample boundary, only when not already pulsing
-        if ((state == MOVING || state == POST_FORWARD) &&
-            (current_move == FORWARD) &&
-            (sample_timer == SAMPLE_TICKS) &&
-            (!pulse_active)) begin
-
-            // default
-            pulse_cmd <= FORWARD;
-
-            // ---------------------------
-            // SINGLE WALL FOLLOW: LEFT ONLY
-            // ---------------------------
-            if (left_valid && !right_valid) begin
-
-                // too close to left wall -> drift RIGHT away
-                if (e_left < -$signed(SWALL_TOL)) begin
-                    pulse_cmd    <= DRIFT_RIGHT;
-                    pulse_active <= 1;
-                end
-
-                // too far from left wall -> drift LEFT toward
-                else if (e_left > $signed(SWALL_TOL)) begin
-                    pulse_cmd    <= DRIFT_LEFT;
-                    pulse_active <= 1;
-                end
-
-                // If trending worse (getting closer quickly), correct early
-                else if (d_left < -17'sd8) begin
-                    pulse_cmd    <= DRIFT_RIGHT;
-                    pulse_active <= 1;
-                end
-            end
-
-            // ---------------------------
-            // SINGLE WALL FOLLOW: RIGHT ONLY
-            // ---------------------------
-            else if (right_valid && !left_valid) begin
-
-                // too close to right wall -> drift LEFT away
-                if (e_right < -$signed(SWALL_TOL)) begin
-                    pulse_cmd    <= DRIFT_LEFT;
-                    pulse_active <= 1;
-                end
-
-                // too far from right wall -> drift RIGHT toward
-                else if (e_right > $signed(SWALL_TOL)) begin
-                    pulse_cmd    <= DRIFT_RIGHT;
-                    pulse_active <= 1;
-                end
-
-                // If trending worse (getting closer quickly), correct early
-                else if (d_right < -17'sd8) begin
-                    pulse_cmd    <= DRIFT_LEFT;
-                    pulse_active <= 1;
-                end
-            end
-
-            else if (left_valid && right_valid) begin
-                    if (wall_error > WALL_TOL) begin
-                        pulse_cmd    <= DRIFT_RIGHT;
-                        pulse_active <= 1;
-                    end else if (wall_error < -WALL_TOL) begin
-                        pulse_cmd    <= DRIFT_LEFT;
-                        pulse_active <= 1;
-                    end
-                end
-
-
-        end
-    end
-end
-
+wire signed [16:0] err_left  = $signed(dist3) - SWALL_TARGET;
+wire signed [16:0] err_right = SWALL_TARGET - $signed(dist1);
 
 
 always @(*) begin
-    steer_cmd = current_move;  // FSM default
+    steer_cmd = current_move;   // default: do what FSM wants
 
-    if ((state == MOVING || state == POST_FORWARD) &&
-        (current_move == FORWARD)) begin
-
-        // If pulse is active, override
-        if (pulse_active)
-            steer_cmd = pulse_cmd;
-
-        // else: allow your dual-wall centering logic
-        // else: nothing (forward)
-        else
-            steer_cmd = FORWARD;
+    if ((state == POST_FORWARD || state == MOVING) && (to_motordriver == FORWARD) && allow_correction) 
+    begin
+            if(current_move == FORWARD) begin
+                if(avg_turn < 3000) 
+                begin
+                    if(left_wall && right_wall) 
+                    begin
+                        if (wall_error > WALL_TOL)
+                            steer_cmd = DRIFT_LEFT;   // too close to left wall
+                        else if (wall_error < -WALL_TOL)
+                            steer_cmd = DRIFT_RIGHT;    // too close to right wall
+                        else
+                            steer_cmd = FORWARD;
+                    end 
+                end
+            end
+            else begin
+                    if(left_wall && right_wall) 
+                    begin
+                        if (wall_error > WALL_TOL)
+                            steer_cmd = DRIFT_LEFT;   // too close to left wall
+                        else if (wall_error < -WALL_TOL)
+                            steer_cmd = DRIFT_RIGHT;    // too close to right wall
+                        else
+                            steer_cmd = FORWARD;
+                end 
+            end
     end
 end
+
+
+
+   /* else if (left_wall && !right_wall) begin
+    // Track left wall
+    if (err_left > SWALL_TOL)
+        steer_cmd = DRIFT_RIGHT;      // too far → move closer
+    else if (err_left < -SWALL_TOL)
+        steer_cmd = DRIFT_LEFT;     // too close → move away
+    end
+
+    else if (right_wall && !left_wall) begin
+    // Track right wall
+    if (err_right > SWALL_TOL)
+        steer_cmd = DRIFT_LEFT;     // too far → move closer
+    else if (err_right < -SWALL_TOL)
+        steer_cmd = DRIFT_RIGHT;      // too close → move away
+    end */
+
+    //end
+	// end
+
+   /* // ================================
+    // Single Wall Correction Parameters
+    // ================================
+    localparam integer CORR_TICKS = 5_000_000; // ~30 ms
+    localparam signed [16:0] DELTA_TOL = 17'sd15;     // ~1 cm noise band
+    localparam [15:0] WALL_VALID = 16'd250;          // 25 cm max wall distance
+
+    reg [25:0] corr_cnt;
+    reg        corr_tick;
+    reg [15:0] prev_wall_dist;
+    reg signed [16:0] delta_wall;
+
+    always @(posedge clk or negedge reset) begin
+        if (!reset) begin
+            corr_cnt  <= 0;
+            corr_tick <= 1'b0;
+        end else if (corr_cnt >= CORR_TICKS) begin
+            corr_cnt  <= 0;
+            corr_tick <= 1'b1;
+        end else begin
+            corr_cnt  <= corr_cnt + 1'b1;
+            corr_tick <= 1'b0;
+        end
+    end
+    wire left_wall_only  = (dist3 < WALL_VALID) && (dist1 >= WALL_VALID);
+    wire right_wall_only = (dist1 < WALL_VALID) && (dist3 >= WALL_VALID);
+    
+    wire [15:0] wall_dist =
+        left_wall_only  ? dist3 :
+        right_wall_only ? dist1 :
+        16'd0;
+
+    always @(posedge clk or negedge reset) begin
+        if (!reset) begin
+            prev_wall_dist <= 16'd0;
+            delta_wall     <= 17'sd0;
+        end else if (corr_tick && (left_wall_only || right_wall_only)) begin
+            delta_wall     <= $signed(wall_dist) - $signed(prev_wall_dist);
+            prev_wall_dist <= wall_dist;
+        end
+    end
+    always @(*) begin
+        steer_cmd = current_move; // default: FSM decides
+    
+        if ((state == MOVING && current_move == FORWARD) ||
+            (state == POST_FORWARD) &&
+            (left_wall_only || right_wall_only)) begin
+            
+            if (delta_wall > DELTA_TOL) begin
+                // drifting away from wall
+                steer_cmd = left_wall_only ? DRIFT_LEFT : DRIFT_RIGHT;
+            end
+            else if (delta_wall < -DELTA_TOL) begin
+                // drifting too close
+                steer_cmd = left_wall_only ? DRIFT_RIGHT : DRIFT_LEFT;
+            end
+            else begin
+                steer_cmd = FORWARD;
+            end
+        end
+    end*/
 
 
 endmodule
