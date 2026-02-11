@@ -34,18 +34,34 @@ module t1b_ultrasonic(
     // 12 ms delay    = 600,000 ticks
     // Timeout (30ms) = 1,500,000 ticks (Safety to prevent hanging)
     localparam [21:0] TRIG_WIDTH = 22'd500;
-    localparam [21:0] WAIT_TIME  = 22'd1500000; 
+    localparam [21:0] WAIT_TIME  = 22'd2000000; 
     localparam [21:0] TIMEOUT    = 22'd1500000;
 
     // ==========================================
     // Registers
     // ==========================================
     reg [2:0] current_state, next_state;
-    reg [21:0] counter;      // Main timer
+    reg [21:0] counter = 0;      // Main timer
     reg [21:0] echo_width;   // Stores how long Echo was high
     reg [15:0] dist_reg;     // Internal register for distance
     reg op_reg;              // Internal register for OP
     reg trig_sent;
+
+    reg echo_ff1, echo_ff2;
+
+    
+
+    always @(posedge clk_50M or negedge reset) begin
+        if (!reset) begin
+            echo_ff1 <= 1'b0;
+            echo_ff2 <= 1'b0;
+        end else begin
+            echo_ff1 <= echo_rx;
+            echo_ff2 <= echo_ff1;
+        end
+    end
+    wire echo_sync = echo_ff2;
+
 
     // ==========================================
     // State Machine Update & Counter
@@ -55,10 +71,10 @@ module t1b_ultrasonic(
             current_state <= IDLE;
             counter <= 0;
         end 
-        else if (!enable) begin
+        /* else if (!enable) begin
             current_state <= IDLE;
             counter <= 0;
-        end
+        end */
         else begin
             // If state changes, reset counter automatically
             if (current_state != next_state) begin
@@ -79,7 +95,9 @@ module t1b_ultrasonic(
 
         case (current_state)
             IDLE: begin
-                next_state = TRIGGER;
+                if(enable) next_state = TRIGGER;
+                else next_state = IDLE;
+
             end
 
             TRIGGER: begin
@@ -90,7 +108,7 @@ module t1b_ultrasonic(
 
             WAIT_ECHO_RISE: begin
                 // Wait for Echo to go High (Start of measurement)
-                if (echo_rx && trig_sent) 
+                if (echo_sync && trig_sent) 
                     next_state = MEASURE_ECHO;
                 // Safety: If no echo after 30ms, abort to prevent hang
                 else if (counter >= TIMEOUT) 
@@ -99,7 +117,7 @@ module t1b_ultrasonic(
 
             MEASURE_ECHO: begin
                 // Wait for Echo to go Low (End of measurement)
-                if (echo_rx == 1'b0) 
+                if (echo_sync == 1'b0) 
                     next_state = CALC_DIST;
                 // Safety: If echo stuck high > 30ms, abort
                 else if (counter >= TIMEOUT) 
@@ -114,7 +132,7 @@ module t1b_ultrasonic(
             WAIT_DELAY: begin
                 // Wait 12ms before next measurement
                 if (counter >= WAIT_TIME) 
-                    next_state = TRIGGER;
+                    next_state = IDLE;
             end
 
             default: next_state = IDLE;
@@ -163,7 +181,7 @@ module t1b_ultrasonic(
                     
                     // Object Present Logic (Threshold < 70mm)
                     // Added check > 0 to ensure 0mm (timeout/error) isn't counted as an object
-                    if ( ((echo_width * 230) >> 16) < 220 && ((echo_width * 230) >> 16) > 0 )
+                    if ( ((echo_width * 230) >> 16) < 225 && ((echo_width * 230) >> 16) > 0 )
                         op_reg <= 1'b1; 
                     else
                         op_reg <= 1'b0;

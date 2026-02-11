@@ -97,7 +97,7 @@ end
             sensor_sel   <= S1;
             slot_counter <= 0;
         end else begin
-            if (slot_counter >= 22'd50_000_00) 
+            if (slot_counter >= 22'd5_00_000) 
             begin
                 slot_counter <= 0;
                 sensor_sel <= (sensor_sel == S3) ? S1 : sensor_sel + 1'b1;
@@ -106,7 +106,7 @@ end
         end
     end
 
-  /*  reg left_snap, mid_snap, right_snap;
+   reg left_snap, mid_snap, right_snap;
     //block to latch the value once all three sensors measure (one complete cycle)
    always @(posedge clk_50M or negedge reset) begin
     if (!reset) begin
@@ -118,10 +118,9 @@ end
         mid_snap   <= op2_hold;
         right_snap <= op1_hold;
     end
-    end */
+    end 
 
-
-    // ================================
+// ================================
 // Bluetooth (BLE) logic
 // ================================
 wire [7:0] rx_msg;
@@ -212,7 +211,7 @@ wire [3:0] dead_count_max;
     wire en1 = (sensor_sel == S1);
     wire en2 = (sensor_sel == S2);
     wire en3 = (sensor_sel == S3);
-    wire sensor_frame_done = (sensor_sel == S3 && slot_counter == 22'd49_999_98);
+    wire sensor_frame_done = (sensor_sel == S3 && slot_counter == 22'd4_99_998);
 
     // ================================
     // Ultrasonic instances
@@ -270,7 +269,10 @@ wire [3:0] dead_count_max;
         .maze_start(maze_start),
         .max_deadends(dead_count_max),        
         .maze_done(maze_done),
-        .mpi_id(dead_count)
+        .mpi_id(dead_count),
+        .dist1(dist1),
+        .dist2(dist2),
+        .dist3(dist3)
     );
 
     //assign led[7:6] = msg_type;
@@ -305,7 +307,8 @@ wire [3:0] dead_count_max;
         .mpi_start(mpi_start),
         .ir(ir_true),
         .mpi_done(mpi_done),
-        .uturn_done(uturn_done)
+        .uturn_done(uturn_done),
+        .maze_done(maze_done)
     );
 
     // ================================
@@ -460,10 +463,12 @@ wire [3:0] dead_count_max;
     if (!reset)
         mord <= 0;
     else if (moist_count == 10_000_000) begin
-        if (moist_value < 12'd1250)
+        if (dead_count == 1)
             mord <= 1;
-        else
+        else if (dead_count == 3)
             mord <= 0;
+        else if (dead_count == 4)
+            mord <= 1;
     end
     end
 

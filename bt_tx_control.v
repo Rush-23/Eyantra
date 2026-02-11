@@ -177,6 +177,7 @@ module bt_tx_control (
                     121: begin tx_data <= "X" ; tx_start <= 1; state <= 122; end
                     122: begin tx_data <= "#" ; tx_start <= 1; state <= 123; end
                     123: begin tx_data <= "X" ; tx_start <= 1; state <= 124; end
+                   // 125: begin tx_data <= 8'h0A; tx_start <= 1; state <= 124; end
                     124: begin tx_start <= 0; state <= 124; end
 
                     

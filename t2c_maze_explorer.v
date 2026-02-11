@@ -15,7 +15,8 @@ module t2c_maze_explorer (
     input wire maze_start,
     input wire [3:0] max_deadends,
     output reg maze_done,
-    output reg [3:0] mpi_id
+    output reg [3:0] mpi_id,
+    input wire [15:0] dist1,dist2,dist3
 );
 
 /*
@@ -174,7 +175,7 @@ always @(posedge clk or negedge rst_n) begin
 
         // WAIT: choose between EXPLORE and BACKTRACK
         WAIT: begin
-            if(!sense_valid)
+            if(!sense_valid && !maze_done)
                 state <= WAIT;
             else if (!doneflag)
                 state <= solve_maze ? BACKTRACK : EXPLORE;  // switch to BACKTRACK when exploration done
@@ -434,8 +435,10 @@ always @(posedge clk or negedge rst_n) begin
                 
 				maze_ack <= 1'b1;
 
-                if(open_paths == 3)
+                if(dist2 > 500 && dist1 > 800 && dist3 > 500) begin
                     maze_done <= 1'b1;
+                    state <= IDLE;
+                end
 
                // if (solve_maze)
                 //     state <= BACKTRACK;

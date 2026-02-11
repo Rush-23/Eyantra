@@ -56,7 +56,7 @@ module motor (
     wire speed_25 = (count < 8'd180);
     wire speed_50 = (count < 8'd180);
     wire speed_75 = (count < 8'd165);
-    wire speed_40 = (count < 8'd150); 
+    wire speed_40 = (count < 8'd10);
     wire speed_60 = (count < 8'd170);
 
 
@@ -94,12 +94,12 @@ module motor (
             DRIFT_LEFT,
             DRIFT_LEFT_HARD: begin
                 l1 <= 1; l2 <= 0;
-                r1 <= 0; r2 <= 1;
+                r1 <= 1; r2 <= 0;
             end
 
             DRIFT_RIGHT,
             DRIFT_RIGHT_HARD: begin
-                l1 <= 0; l2 <= 1;
+                l1 <= 1; l2 <= 0;
                 r1 <= 1; r2 <= 0;
             end
 
