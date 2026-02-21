@@ -62,6 +62,7 @@ wire update_freeze;              // prevents incrementing visited count while ex
 wire solve_maze;                 // indicates exploration phase is complete
 wire [1:0] open_paths;           // number of open directions at current cell
 reg [3:0] dead_count;
+reg [3:0] full_dead_count;
 
 
 // Registers
@@ -116,7 +117,7 @@ assign update_freeze = (visited[4][0] > 1);
 assign open_paths = (!left + !mid + !right);
 
 // signal that maze exploration is done (all 9 deadends found & at a junction)
-assign solve_maze = (dead_count >= max_deadends);
+assign solve_maze = (full_dead_count >= 8 && open_paths > 1);
 
 //integer to be used in for loop
 integer i,j;
@@ -214,7 +215,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_col <= curr_col;
                         next_row <= curr_row + 1;
                         mpi_id <= mpi_id + 1;
-                       // dead_count <= dead_count + 1; // count deadend
+                        full_dead_count <= full_dead_count + 1; // count deadend
                     end
                 end
 
@@ -252,7 +253,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_col <= curr_col - 1;
                         next_row <= curr_row;
                         mpi_id <= mpi_id + 1;
-                        //dead_count <= dead_count + 1; // count deadend
+                        full_dead_count <= full_dead_count + 1; // count deadend
                     end
                 end
 
@@ -290,7 +291,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_col <= curr_col;
                         next_row <= curr_row - 1;
                         mpi_id <= mpi_id + 1;
-                       // dead_count <= dead_count + 1; // count deadend
+                        full_dead_count <= full_dead_count + 1; // count deadend
                     end
                     
                 end
@@ -329,7 +330,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_col <= curr_col + 1;
                         next_row <= curr_row;
                         mpi_id <= mpi_id + 1;
-                       // dead_count <= dead_count + 1; // count deadend
+                        full_dead_count <= full_dead_count + 1; // count deadend
                 end
                 end
             endcase
@@ -483,11 +484,12 @@ always @(posedge clk or negedge rst_n) begin
                     state <= IDLE;
                 end
 
-               // if (solve_maze)
-                //     state <= BACKTRACK;
-                //else
                 if(halt_counter >= 1_000_000) begin
-                    state <= EXPLORE;
+                    if (solve_maze)
+                            state <= BACKTRACK;
+                    else begin
+                            state <= EXPLORE;
+                    end
                     maze_ack <= 1'b1;
                 end
     end

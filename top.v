@@ -65,15 +65,19 @@ module top(
     wire op2;
     wire op3;
 
-    always @(posedge clk_50M or negedge reset) begin
+wire slot_end = (slot_counter == 22'd4_999_998);
+
+always @(posedge clk_50M or negedge reset) begin
     if (!reset) begin
-        op1_latched <= 1'b0;
-        op2_latched <= 1'b0;
-        op3_latched <= 1'b0;
-    end else begin
-        if (en1) op1_latched <= op1;
-        if (en2) op2_latched <= op2;
-        if (en3) op3_latched <= op3;
+        op1_latched <= 0;
+        op2_latched <= 0;
+        op3_latched <= 0;
+    end else if (slot_end) begin
+        case (sensor_sel)
+            S1: op1_latched <= op1;
+            S2: op2_latched <= op2;
+            S3: op3_latched <= op3;
+        endcase
     end
 end
 
