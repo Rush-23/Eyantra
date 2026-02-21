@@ -183,7 +183,7 @@ module t1b_ultrasonic(
                     // Added check > 0 to ensure 0mm (timeout/error) isn't counted as an object
                     if ( ((echo_width * 230) >> 16) < 225 && ((echo_width * 230) >> 16) > 0 )
                         op_reg <= 1'b1; 
-                    else
+                    else if(((echo_width * 230) >> 16) > 225)
                         op_reg <= 1'b0;
                    // done <= 1'b1;
                 end

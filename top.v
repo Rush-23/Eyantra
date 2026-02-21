@@ -78,19 +78,19 @@ module top(
 end
 
     reg op1_hold, op2_hold, op3_hold;
-/* 
+
 always @(posedge clk_50M or negedge reset) begin
     if (!reset) begin
         op1_hold <= 0;
         op2_hold <= 0;
         op3_hold <= 0;
     end else begin
-        if (en1) op1_hold <= op1_latched;
-        if (en2) op2_hold <= op2_latched;
-        if (en3) op3_hold <= op3_latched;
+        op1_hold <= op1_latched;
+        op2_hold <= op2_latched;
+        op3_hold <= op3_latched;
     end
 end
-*/
+
 
     always @(posedge clk_50M or negedge reset) begin
         if (!reset) begin
@@ -308,8 +308,12 @@ wire [3:0] dead_count_max;
         .ir(ir_true),
         .mpi_done(mpi_done),
         .uturn_done(uturn_done),
-        .maze_done(maze_done)
+        .maze_done(maze_done),
+        .deltaL_reg(DeltaL),
+        .deltaR_reg(DeltaR)
     );
+
+    wire signed [16:0] DeltaL,DeltaR;
 
     // ================================
     // Motor driver

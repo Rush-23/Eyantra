@@ -28,7 +28,8 @@ module controller (
     input  wire ir,
 	input  wire mpi_done,
     input wire maze_done,
-    output reg  uturn_done
+    output reg  uturn_done,
+    output reg signed [16:0] deltaL_reg, deltaR_reg
 );
 
     // =====================================================
@@ -105,7 +106,7 @@ module controller (
     // =====================================================
     // Calibration parameters
     // =====================================================
-    localparam FWD_TICKS = 32'd4950, LTICK_90 = 32'd1425, RTICK_90 =32'd1450, TICK_180 = 32'd2950, POST_FWD_TICKS = 32'd5390;
+    localparam FWD_TICKS = 32'd4950, LTICK_90 = 32'd1425, RTICK_90 =32'd1350, TICK_180 = 32'd2950, POST_FWD_TICKS = 32'd5390;
 
     // =====================================================
     // WAIT timing (1 second)
@@ -366,31 +367,47 @@ always @(*) begin
     end
     else if (left_wall) begin
         // track left wall
-        wall_err = $signed({1'b0, distL_f}) - SWALL_TARGET;
+        wall_err = $signed({1'b0, dist3}) - SWALL_TARGET;
     end
     else if (right_wall) begin
         // track right wall
-        wall_err = SWALL_TARGET - $signed({1'b0, distR_f});
+        wall_err = SWALL_TARGET - $signed({1'b0, dist1});
     end
 end
 
 
 reg [24:0] sample_timer;
-reg [15:0] distL_slow;
-wire signed [16:0] deltaL = $signed(dist3) - $signed(distL_slow);
+reg [15:0] distL_slow, distR_slow;
 
-reg [15:0] distR_slow;
-wire signed [16:0] deltaR = $signed(dist1) - $signed(distR_slow);
-always @(posedge clk) begin
-    if (sample_timer < 2_500_000) begin // 50ms at 50MHz
-        sample_timer <= sample_timer + 1;
-    end else begin
+
+always @(posedge clk or negedge reset) begin
+    if (!reset) begin
         sample_timer <= 0;
-        distL_slow <= dist3; // Update the reference once every 50ms
-        distR_slow <= dist1;
+        distL_slow   <= 0;
+        distR_slow   <= 0;
+        deltaL_reg   <= 0;
+        deltaR_reg   <= 0;
+    end else begin
+        if (sample_timer < 500_000) begin
+            sample_timer <= sample_timer + 1;
+        end else begin
+            sample_timer <= 0;
+            
+            // 1. Calculate Delta using the Snapshot from 50ms ago
+            deltaL_reg <= $signed({dist3}) - $signed({distL_slow});
+            deltaR_reg <= $signed({dist1}) - $signed({distR_slow});
+            
+            // 2. Update the Snapshot for the NEXT 50ms
+            distL_slow <= dist3;
+            distR_slow <= dist1;
+        end
     end
 end
 
+// Connect the wires to these registered values
+assign deltaL = deltaL_reg;
+assign deltaR = deltaR_reg;
+/*
 // ===================
 // Steering Logic
 // ===================
@@ -408,8 +425,8 @@ always @(*) begin
 
         if (left_wall && right_wall) begin
 
-            if(deltaR <= -3 && deltaR >= 3) begin
-                
+           // if((deltaR <= -4 || deltaR >= 4) || (deltaL <= -4 || deltaL >= 4)) begin
+        if(state == POST_FORWARD && avg_turn >2000) begin
             if (wall_err > MED_ERR)
                 steer_cmd = DRIFT_LEFT;
 
@@ -424,7 +441,155 @@ always @(*) begin
 
             else
                 steer_cmd = FORWARD;
+        // end
         end
+
+        else if(state == FORWARD && avg_turn <1000) begin
+            if (wall_err > MED_ERR)
+                steer_cmd = DRIFT_LEFT;
+
+            else if (wall_err < -MED_ERR)
+                steer_cmd = DRIFT_RIGHT;
+
+            else if (wall_err > SMALL_ERR)
+                steer_cmd = DRIFT_LEFT;
+
+            else if (wall_err < -SMALL_ERR)
+                steer_cmd = DRIFT_RIGHT;
+
+            else
+                steer_cmd = FORWARD;
+        // end
+        end
+        end
+
+        /*else if(left_wall && !right_wall) begin
+
+            if(dist3 < 73)
+                steer_cmd = DRIFT_LEFT;
+            else if(dist3 > 73)
+                steer_cmd = DRIFT_RIGHT;
+        end
+
+        
+        else if(!left_wall && right_wall) begin
+
+            if(dist1 < 73)
+                steer_cmd = DRIFT_RIGHT;
+            else if(dist1 > 73)
+                steer_cmd = DRIFT_LEFT;
+
+
+        end
+
+    end
+end
+
+endmodule */
+
+// ===================
+// Correction Window Control
+// ===================
+
+localparam [31:0] CORR_WINDOW_FWD = 32'd1000;
+localparam [31:0] CORR_WINDOW_PFWD = 32'd2000;
+
+reg correction_active;
+
+always @(*) begin
+    correction_active = 1'b0;
+
+    case (state)
+
+        // FORWARD → first 2000 ticks
+        MOVING: begin
+            if (current_move == FORWARD) begin
+                if (avg_turn < CORR_WINDOW_FWD)
+                    correction_active = 1'b1;
+            end
+        end
+
+        // POST_FORWARD → last 2000 ticks
+        POST_FORWARD: begin
+            if (avg_turn > (POST_FWD_TICKS - CORR_WINDOW_PFWD))
+                correction_active = 1'b1;
+        end
+
+        default: correction_active = 1'b0;
+
+    endcase
+end
+
+// ===================
+// Steering Logic (Windowed Correction)
+// ===================
+always @(*) begin
+    // default command
+    steer_cmd = current_move;
+
+    // force straight base command in POST_FORWARD
+    if (state == POST_FORWARD)
+        steer_cmd = FORWARD;
+
+    // Apply correction only inside correction window
+    if (correction_active) begin
+
+        // ---------------- Corridor Centering ----------------
+        if (left_wall && right_wall) begin
+
+    // Only correct if not parallel
+    if ((deltaL > 2 || deltaL < -2) ||
+        (deltaR > 2 || deltaR < -2)) begin
+
+        if (wall_err > MED_ERR)
+            steer_cmd = DRIFT_LEFT;
+
+        else if (wall_err < -MED_ERR)
+            steer_cmd = DRIFT_RIGHT;
+
+        else if (wall_err > SMALL_ERR)
+            steer_cmd = DRIFT_LEFT;
+
+        else if (wall_err < -SMALL_ERR)
+            steer_cmd = DRIFT_RIGHT;
+
+        else
+            steer_cmd = FORWARD;
+    end
+    else begin
+        // parallel → no correction
+        steer_cmd = FORWARD;
+    end
+end
+
+        // ---------------- Left Wall Tracking ----------------
+        else if (left_wall && !right_wall) begin
+
+            if (deltaL > 2 || deltaL < -2) begin
+                if (dist3 < 73)
+                    steer_cmd = DRIFT_LEFT;
+                else if (dist3 > 73)
+                    steer_cmd = DRIFT_RIGHT;
+                else
+                    steer_cmd = FORWARD;
+            end
+            else
+                steer_cmd = FORWARD;
+        end
+
+        // ---------------- Right Wall Tracking ----------------
+        else if (!left_wall && right_wall) begin
+
+            if (deltaR > 2 || deltaR < -2) begin
+                if (dist1 < 73)
+                    steer_cmd = DRIFT_RIGHT;
+                else if (dist1 > 73)
+                    steer_cmd = DRIFT_LEFT;
+                else
+                    steer_cmd = FORWARD;
+            end
+            else
+                steer_cmd = FORWARD;
         end
     end
 end

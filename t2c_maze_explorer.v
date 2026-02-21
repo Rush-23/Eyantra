@@ -85,7 +85,8 @@ localparam IDLE      = 0,        // initial setup
            WAIT      = 1,        // wait / decision state
            EXPLORE   = 2,        // exploration phase
            BACKTRACK = 3,
-           WAIT_COMPLETE = 4;        // path back to goal
+           WAIT_COMPLETE = 4,       // path back to goal
+           HALT = 5;
 reg [2:0] state;                 // current FSM state
 
 // Deadend counter for exploration phase
@@ -94,6 +95,9 @@ reg [2:0] state;                 // current FSM state
 // Flag to indicate switching to BACKTRACK
 reg doneflag;                    // once set, stay in BACKTRACK
 reg sensors_ready;
+reg[24:0] halt_counter;
+
+
 
 
 // Constants
@@ -121,23 +125,6 @@ reg exploreflag;
 
 // Main Sequential Process: FSM, movement, and marking
 
-function [3:0] abs_diff;
-        input [3:0] a;
-        input [3:0] b;
-        begin
-            if (a >= b) abs_diff = a - b;
-            else        abs_diff = b - a;
-        end
-    endfunction
-
-    function [4:0] manhattan;
-        input [3:0] r;
-        input [3:0] c;
-        begin
-            manhattan = abs_diff(r, goal_row) + abs_diff(c, goal_col);
-        end
-    endfunction
-
 always @(posedge clk or negedge rst_n) begin
 
     // Reset section
@@ -149,10 +136,10 @@ always @(posedge clk or negedge rst_n) begin
         doneflag  <= 0;          // clear done flag
         maze_done <= 0;
         exploreflag <= 0;
-        // clear visited map
-       /* for (i = 0; i < COL; i = i + 1)
+        //clear visited map
+        for (i = 0; i < COL; i = i + 1)
             for (j = 0; j < ROW; j = j + 1)
-                visited[i][j] <= 0; */
+                visited[i][j] <= 0;
     end 
 
     // Normal operation
@@ -161,8 +148,8 @@ always @(posedge clk or negedge rst_n) begin
 
         // IDLE: initialize start position & wait
         IDLE: begin
-           // curr_col        <= 4;    // start column
-            //curr_row        <= 8;    // start row
+          //  curr_col        <= 4;    // start column
+          //  curr_row        <= 8;    // start row
             visited[4][8]   <= 0;    // clear start cell visited state
             move            <= 3'b000;
             mpi_id <= 4'b0;
@@ -479,9 +466,17 @@ always @(posedge clk or negedge rst_n) begin
         WAIT_COMPLETE: begin
              if (move_done) begin
 
-                move     <= 3'b000;
+                //move     <= 3'b000;
                 
-				maze_ack <= 1'b1;
+				if (open_paths == 0)
+                     visited[curr_col][curr_row] <= 2;  // deadend
+                 else if (open_paths == 1 && !update_freeze)
+                     visited[curr_col][curr_row] <= visited[curr_col][curr_row] + 1;
+                 else if (open_paths > 1)
+                     visited[curr_col][curr_row] <= 3;
+
+                 if (curr_row == goal_row && curr_col == goal_col)
+                    visited[curr_col][curr_row] <= 3;
 
                 if(dist2 > 500 && dist1 > 800 && dist3 > 500) begin
                     maze_done <= 1'b1;
@@ -491,11 +486,14 @@ always @(posedge clk or negedge rst_n) begin
                // if (solve_maze)
                 //     state <= BACKTRACK;
                 //else
-                     state <= EXPLORE;
+                if(halt_counter >= 1_000_000) begin
+                    state <= EXPLORE;
+                    maze_ack <= 1'b1;
+                end
     end
 end
 
- 
+
 
         // default
 
@@ -507,6 +505,11 @@ end
     end
 end 
 //assign dbg_dir = dir;
+always@(posedge clk) begin
+    if(state == WAIT_COMPLETE && move_done) halt_counter <= halt_counter + 1;
+    else halt_counter <= 0;
+end
+
 
 always@(posedge clk) begin
     if(state == IDLE) begin
@@ -559,8 +562,3 @@ end
 //////////////////DO NOT MAKE ANY CHANGES BELOW THIS LINE //////////////////
 */
 endmodule
-
-
-
-
-
