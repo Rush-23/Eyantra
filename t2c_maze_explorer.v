@@ -371,57 +371,105 @@ always @(posedge clk or negedge rst_n) begin
             else begin
                 // -------- Choose based on best with YOUR tie-break --------
                 // priority: RIGHT > FORWARD > LEFT
-                if (best == 5'd31) begin
-                    // no open paths
-                    move <= 3'b100;
-                    next_dir  <= (dir + 2) & 2'b11;
-                    mpi_id <= mpi_id + 1;
-                    dead_count <= dead_count + 1;
+                 case (dir)
+                    // Facing North
+                    2'd0: begin
+                        if (!right && ((visited[curr_col+1][curr_row] == 1) || (visited[curr_col+1][curr_row] == 3))) begin
+                            move     <= 3'b011;
+                            next_dir      <= (dir + 1) & 2'b11;
+                            next_col = curr_col + 1; next_row = curr_row;
+                        end
+                        else if (!left && ((visited[curr_col-1][curr_row] == 1) || (visited[curr_col-1][curr_row] == 3))) begin
+                            move     <= 3'b010;
+                            next_dir      <= (dir + 3) & 2'b11;
+                            next_col = curr_col - 1; next_row = curr_row;
+                        end 
+                        else if (!mid && ((visited[curr_col][curr_row-1] == 1) || (visited[curr_col][curr_row-1] == 3))) begin
+                            move     <= 3'b001;
+                            next_dir      <= dir;
+                            next_row = curr_row - 1; next_col = curr_col;
+                        end 
+                        else begin
+                            move     <= 3'b100;
+                            next_dir      <= (dir + 2) & 2'b11;
+                            next_col = curr_col; next_row = curr_row + 1;
+                        end
+                    end
 
-                    // uturn move target
-                    case (dir)
-                        2'd0: if (curr_row < ROW-1) next_row <= curr_row + 1;
-                        2'd1: if (curr_col > 0)     next_col <= curr_col - 1;
-                        2'd2: if (curr_row > 0)     next_row <= curr_row - 1;
-                        2'd3: if (curr_col < COL-1) next_col <= curr_col + 1;
-                    endcase
-                end
-                else if (d_right == best) begin
-                    // RIGHT wins ties
-                    move <= 3'b011;
-                    next_dir  <= (dir + 1) & 2'b11;
+                    // Facing East
+                    2'd1: begin
+                        if (!left && ((visited[curr_col][curr_row-1] == 1) || (visited[curr_col][curr_row-1] == 3))) begin
+                            move     <= 3'b010;
+                            next_dir      <= (dir + 3) & 2'b11;
+                            next_row = curr_row - 1; next_col = curr_col;
+                        end 
+                        else if (!mid && ((visited[curr_col+1][curr_row] == 1) || (visited[curr_col+1][curr_row] == 3))) begin
+                            move     <= 3'b001;
+                            next_dir      <= dir;
+                            next_col = curr_col + 1; next_row = curr_row;
+                        end 
+                        else if (!right && ((visited[curr_col][curr_row+1] == 1) || (visited[curr_col][curr_row+1] == 3))) begin
+                            move     <= 3'b011;
+                            next_dir      <= (dir + 1) & 2'b11;
+                            next_row = curr_row + 1; next_col = curr_col;
+                        end 
+                        else if (left && mid && right) begin
+                            move     <= 3'b100;
+                            next_dir      <= (dir + 2) & 2'b11;
+                            next_col = curr_col - 1; next_row = curr_row;
+                        end
+                    end
 
-                    case (dir)
-                        2'd0: next_col <= curr_col + 1;
-                        2'd1: next_row <= curr_row + 1;
-                        2'd2: next_col <= curr_col - 1;
-                        2'd3: next_row <= curr_row - 1;
-                    endcase
-                end
-                else if (d_fwd == best) begin
-                    // FORWARD second
-                    move <= 3'b001;
+                    // Facing South
+                    2'd2: begin
+                        if (!left && ((visited[curr_col+1][curr_row] == 1) || (visited[curr_col+1][curr_row] == 3))) begin
+                            move     <= 3'b010;
+                            next_dir      <= (dir + 3) & 2'b11;
+                            next_col = curr_col + 1; next_row = curr_row;
+                        end 
+                        else if (!mid && ((visited[curr_col][curr_row+1] == 1) || (visited[curr_col][curr_row+1] == 3))) begin
+                            move     <= 3'b001;
+                            next_dir      <= dir;
+                            next_row = curr_row + 1; next_col = curr_col;
+                        end 
+                        else if (!right && ((visited[curr_col-1][curr_row] == 1) || (visited[curr_col-1][curr_row] == 3))) begin
+                            move     <= 3'b011;
+                            next_dir      <= (dir + 1) & 2'b11;
+                            next_col = curr_col - 1; next_row = curr_row;
+                        end 
+                        else begin
+                            move     <= 3'b100;
+                            next_dir      <= (dir + 2) & 2'b11;
+                            next_col = curr_col; next_row = curr_row - 1;
+                        end
+                    end
 
-                    case (dir)
-                        2'd0: next_row <= curr_row - 1;
-                        2'd1: next_col <= curr_col + 1;
-                        2'd2: next_row <= curr_row + 1;
-                        2'd3: next_col <= curr_col - 1;
-                    endcase
-                end
-                else begin
-                    // LEFT last
-                    move <= 3'b010;
-                    next_dir  <= (dir + 3) & 2'b11;
-
-                    case (dir)
-                        2'd0: next_col <= curr_col - 1;
-                        2'd1: next_row <= curr_row - 1;
-                        2'd2: next_col <= curr_col + 1;
-                        2'd3: next_row <= curr_row + 1;
-                    endcase
-                end
+                    // Facing West
+                    2'd3: begin
+                        if (!left && ((visited[curr_col][curr_row+1] == 1) || (visited[curr_col][curr_row+1] == 3))) begin
+                            move     <= 3'b010;
+                            next_dir      <= (dir + 3) & 2'b11;
+                            next_row = curr_row + 1; next_col = curr_col;
+                        end 
+                        else if (!mid && ((visited[curr_col-1][curr_row] == 1) || (visited[curr_col-1][curr_row] == 3))) begin
+                            move     <= 3'b001;
+                            next_dir      <= dir;
+                            next_col = curr_col - 1; next_row = curr_row;
+                        end 
+                        else if (!right && ((visited[curr_col][curr_row-1] == 1) || (visited[curr_col][curr_row-1] == 3))) begin
+                            move     <= 3'b011;
+                            next_dir      <= (dir + 1) & 2'b11;
+                            next_row = curr_row - 1; next_col = curr_col;
+                        end 
+                        else begin
+                            move     <= 3'b100;
+                            next_dir      <= (dir + 2) & 2'b11;
+                            next_col = curr_col + 1; next_row = curr_row;
+                        end
+                    end
+                endcase
             end
+
 
 
             // commit new position and return to WAIT
@@ -474,7 +522,7 @@ always@(posedge clk) begin
     end
 end
 
-always@(*) begin
+/*always@(*) begin
                 d_left  = 5'd31;
                 d_fwd   = 5'd31;
                 d_right = 5'd31;
@@ -509,7 +557,7 @@ always@(*) begin
                 if (d_right < best) best = d_right;
 end
 //////////////////DO NOT MAKE ANY CHANGES BELOW THIS LINE //////////////////
-
+*/
 endmodule
 
 

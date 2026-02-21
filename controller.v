@@ -347,7 +347,7 @@ wire right_wall = (distR_f < WALL_VALID);
 // ===================
 // Tracking Parameters
 // ===================
-localparam signed [17:0] SWALL_TARGET = 18'sd80;  // desired 8cm offset
+localparam signed [17:0] SWALL_TARGET = 18'sd200;  // desired 8cm offset
 localparam signed [17:0] SMALL_ERR    = 18'sd20;
 localparam signed [17:0] MED_ERR      = 18'sd40;
 
@@ -375,6 +375,22 @@ always @(*) begin
 end
 
 
+reg [24:0] sample_timer;
+reg [15:0] distL_slow;
+wire signed [16:0] deltaL = $signed(dist3) - $signed(distL_slow);
+
+reg [15:0] distR_slow;
+wire signed [16:0] deltaR = $signed(dist1) - $signed(distR_slow);
+always @(posedge clk) begin
+    if (sample_timer < 2_500_000) begin // 50ms at 50MHz
+        sample_timer <= sample_timer + 1;
+    end else begin
+        sample_timer <= 0;
+        distL_slow <= dist3; // Update the reference once every 50ms
+        distR_slow <= dist1;
+    end
+end
+
 // ===================
 // Steering Logic
 // ===================
@@ -392,6 +408,8 @@ always @(*) begin
 
         if (left_wall && right_wall) begin
 
+            if(deltaR <= -3 && deltaR >= 3) begin
+                
             if (wall_err > MED_ERR)
                 steer_cmd = DRIFT_LEFT;
 
@@ -406,6 +424,7 @@ always @(*) begin
 
             else
                 steer_cmd = FORWARD;
+        end
         end
     end
 end
