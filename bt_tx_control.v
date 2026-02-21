@@ -22,6 +22,8 @@ module bt_tx_control (
     output reg  btx_done,
     input  wire send_start,
     input  wire mord,
+    input [3:0] col, row,
+    input [1:0] dir,
     input  wire maze_done
 );
 
@@ -77,7 +79,8 @@ module bt_tx_control (
                     //tx_start <= 0;
                     if(maze_done)
                         state <= 114;
-                    if (send_start) begin
+                    
+                    else if (send_start) begin
                         case (msg_type)
                             MSG_MPIM: state <= 2;
                           //  MSG_MM:   state <= 12;
@@ -85,6 +88,8 @@ module bt_tx_control (
                             
                         endcase
                     end
+
+                    else state <= 125;
                 end
 
                     // MPIM Message
@@ -181,6 +186,21 @@ module bt_tx_control (
                     124: begin tx_start <= 0; state <= 124; end
 
                     
+                    125: begin tx_data <= "C" ; tx_start <= 1; state <= 126; end
+                    126: begin tx_data <= "X" ; tx_start <= 1; state <= 127; end
+                    127: begin tx_data <= to_hex(col); tx_start <= 1; state <= 128; end
+                    128: begin tx_data <= "X" ; tx_start <= 1; state <= 129; end
+                    129: begin tx_data <= "R" ; tx_start <= 1; state <= 130; end
+                    130: begin tx_data <= "X" ; tx_start <= 1; state <= 131; end
+                    131: begin tx_data <= to_hex(row) ; tx_start <= 1; state <= 132; end
+                    132: begin tx_data <= "X" ; tx_start <= 1; state <= 133; end
+                    133: begin tx_data <= "D" ; tx_start <= 1; state <= 134; end
+                    134: begin tx_data <= "X" ; tx_start <= 1; state <= 135; end
+                    135: begin tx_data <= to_hex(dir) ; tx_start <= 1; state <= 136; end
+                    136: begin tx_data <= "X" ; tx_start <= 1; state <= 137; end
+                    137: begin tx_data <= 8'h0A ; tx_start <= 1; state <= 138; end
+                    138: begin tx_start <= 0; state <= IDLE; end
+
                     
                     
                     // ---------- END ----------

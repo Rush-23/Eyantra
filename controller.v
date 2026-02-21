@@ -319,162 +319,95 @@ end
     wire [15:0] align_dist = (current_move == LEFT) ? dist3 : (currrent_move == RIGHT) ? dist1 : dist3;
 */
 
-// ===================
-// Wall filtering
+/// ===================
+// Wall filtering (low-pass)
 // ===================
 reg [15:0] distL_f, distR_f;
 
 always @(posedge clk or negedge reset) begin
     if (!reset) begin
-        distL_f <= 0;
-        distR_f <= 0;
+        distL_f <= 16'd0;
+        distR_f <= 16'd0;
     end else begin
-        distL_f <= (distL_f + dist3) >> 1;   // left ultrasonic
-        distR_f <= (distR_f + dist1) >> 1;   // right ultrasonic
+        distL_f <= (distL_f + dist3) >> 1;  // left sensor
+        distR_f <= (distR_f + dist1) >> 1;  // right sensor
     end
 end
+
 
 // ===================
 // Wall detection
 // ===================
-wire left_wall  = (distL_f < 300);   // 25cm
-wire right_wall = (distR_f < 300);
+localparam [15:0] WALL_VALID = 16'd150;  // 30 cm threshold
+
+wire left_wall  = (distL_f < WALL_VALID);
+wire right_wall = (distR_f < WALL_VALID);
+
 
 // ===================
-// Error computation
+// Tracking Parameters
 // ===================
-wire signed [15:0] wall_error;
-assign wall_error = $signed(distR_f) - $signed(distL_f);
+localparam signed [17:0] SWALL_TARGET = 18'sd80;  // desired 8cm offset
+localparam signed [17:0] SMALL_ERR    = 18'sd20;
+localparam signed [17:0] MED_ERR      = 18'sd40;
 
-// 2cm deadband
-localparam signed [15:0] WALL_TOL = 16'sd20;
 
-reg [15:0] corr_timer;
-
-always @(posedge clk or negedge reset) begin
-    if (!reset)
-        corr_timer <= 0;
-    else if ((state == MOVING && current_move == FORWARD)|| state == POST_FORWARD) //cchanged
-        corr_timer <= corr_timer + 1;
-    else if (steer_cmd != FORWARD)
-        corr_timer <= 0;
-    else 
-        corr_timer <= 0;
-end
-
-wire allow_correction = (corr_timer > 16'd5_000_000); // ~1ms at 50MHz
-
-//single wall parameters
-localparam SWALL_TARGET = 16'd115;   // 12cm
-localparam SWALL_TOL    = 16'd40;    // 1.5cm deadband
-localparam SWALL_MAX    = 16'd250;   // wall valid below 25cm
-
-wire signed [16:0] err_left  = $signed(dist3) - SWALL_TARGET;
-wire signed [16:0] err_right = SWALL_TARGET - $signed(dist1);
-
+// ===================
+// Unified Wall Error
+// ===================
+reg signed [17:0] wall_err;
 
 always @(*) begin
-    steer_cmd = current_move;   // default: do what FSM wants
+    wall_err = 18'sd0;
 
-    if ((state == POST_FORWARD || (state == MOVING && current_move == FORWARD)) && allow_correction) 
-    begin
-                if(avg_turn < 3000) 
-                begin
-                    if(left_wall && right_wall) 
-                    begin
-                        if (wall_error > WALL_TOL)
-                            steer_cmd = DRIFT_LEFT;   // too close to left wall
-                        else if (wall_error < -WALL_TOL)
-                            steer_cmd = DRIFT_RIGHT;    // too close to right wall
-                        else
-                            steer_cmd = FORWARD;
-                    end 
-                end
-            end
+    if (left_wall && right_wall) begin
+        // corridor centering
+        wall_err = $signed({distR_f}) - $signed({distL_f});
+    end
+    else if (left_wall) begin
+        // track left wall
+        wall_err = $signed({1'b0, distL_f}) - SWALL_TARGET;
+    end
+    else if (right_wall) begin
+        // track right wall
+        wall_err = SWALL_TARGET - $signed({1'b0, distR_f});
+    end
 end
 
 
+// ===================
+// Steering Logic
+// ===================
+always @(*) begin
+    // default
+    steer_cmd = current_move;
 
-   /* else if (left_wall && !right_wall) begin
-    // Track left wall
-    if (err_left > SWALL_TOL)
-        steer_cmd = DRIFT_RIGHT;      // too far → move closer
-    else if (err_left < -SWALL_TOL)
-        steer_cmd = DRIFT_LEFT;     // too close → move away
-    end
+    // force straight in POST_FORWARD
+    if (state == POST_FORWARD)
+        steer_cmd = FORWARD;
 
-    else if (right_wall && !left_wall) begin
-    // Track right wall
-    if (err_right > SWALL_TOL)
-        steer_cmd = DRIFT_LEFT;     // too far → move closer
-    else if (err_right < -SWALL_TOL)
-        steer_cmd = DRIFT_RIGHT;      // too close → move away
-    end */
+    // apply correction only during straight movement
+    if ((state == MOVING && current_move == FORWARD) ||
+        (state == POST_FORWARD)) begin
 
-    //end
-	// end
+        if (left_wall && right_wall) begin
 
-   /* // ================================
-    // Single Wall Correction Parameters
-    // ================================
-    localparam integer CORR_TICKS = 5_000_000; // ~30 ms
-    localparam signed [16:0] DELTA_TOL = 17'sd15;     // ~1 cm noise band
-    localparam [15:0] WALL_VALID = 16'd250;          // 25 cm max wall distance
+            if (wall_err > MED_ERR)
+                steer_cmd = DRIFT_LEFT;
 
-    reg [25:0] corr_cnt;
-    reg        corr_tick;
-    reg [15:0] prev_wall_dist;
-    reg signed [16:0] delta_wall;
+            else if (wall_err < -MED_ERR)
+                steer_cmd = DRIFT_RIGHT;
 
-    always @(posedge clk or negedge reset) begin
-        if (!reset) begin
-            corr_cnt  <= 0;
-            corr_tick <= 1'b0;
-        end else if (corr_cnt >= CORR_TICKS) begin
-            corr_cnt  <= 0;
-            corr_tick <= 1'b1;
-        end else begin
-            corr_cnt  <= corr_cnt + 1'b1;
-            corr_tick <= 1'b0;
-        end
-    end
-    wire left_wall_only  = (dist3 < WALL_VALID) && (dist1 >= WALL_VALID);
-    wire right_wall_only = (dist1 < WALL_VALID) && (dist3 >= WALL_VALID);
-    
-    wire [15:0] wall_dist =
-        left_wall_only  ? dist3 :
-        right_wall_only ? dist1 :
-        16'd0;
+            else if (wall_err > SMALL_ERR)
+                steer_cmd = DRIFT_LEFT;
 
-    always @(posedge clk or negedge reset) begin
-        if (!reset) begin
-            prev_wall_dist <= 16'd0;
-            delta_wall     <= 17'sd0;
-        end else if (corr_tick && (left_wall_only || right_wall_only)) begin
-            delta_wall     <= $signed(wall_dist) - $signed(prev_wall_dist);
-            prev_wall_dist <= wall_dist;
-        end
-    end
-    always @(*) begin
-        steer_cmd = current_move; // default: FSM decides
-    
-        if ((state == MOVING && current_move == FORWARD) ||
-            (state == POST_FORWARD) &&
-            (left_wall_only || right_wall_only)) begin
-            
-            if (delta_wall > DELTA_TOL) begin
-                // drifting away from wall
-                steer_cmd = left_wall_only ? DRIFT_LEFT : DRIFT_RIGHT;
-            end
-            else if (delta_wall < -DELTA_TOL) begin
-                // drifting too close
-                steer_cmd = left_wall_only ? DRIFT_RIGHT : DRIFT_LEFT;
-            end
-            else begin
+            else if (wall_err < -SMALL_ERR)
+                steer_cmd = DRIFT_RIGHT;
+
+            else
                 steer_cmd = FORWARD;
-            end
         end
-    end*/
-
+    end
+end
 
 endmodule

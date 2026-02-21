@@ -97,7 +97,7 @@ end
             sensor_sel   <= S1;
             slot_counter <= 0;
         end else begin
-            if (slot_counter >= 22'd5_00_000) 
+            if (slot_counter >= 22'd5_000_000) 
             begin
                 slot_counter <= 0;
                 sensor_sel <= (sensor_sel == S3) ? S1 : sensor_sel + 1'b1;
@@ -211,7 +211,7 @@ wire [3:0] dead_count_max;
     wire en1 = (sensor_sel == S1);
     wire en2 = (sensor_sel == S2);
     wire en3 = (sensor_sel == S3);
-    wire sensor_frame_done = (sensor_sel == S3 && slot_counter == 22'd4_99_998);
+    wire sensor_frame_done = (sensor_sel == S3 && slot_counter == 22'd4_999_998);
 
     // ================================
     // Ultrasonic instances
@@ -254,7 +254,7 @@ wire [3:0] dead_count_max;
 
     t2c_maze_explorer m1 (
         .clk(clk_50M),
-        .rst_n(reset),
+        .rst_n(reset_n),
         .left(op3_latched),
         .mid(op2_latched),
         .right(op1_latched),
@@ -401,6 +401,8 @@ wire [3:0] dead_count_max;
         .dipped(dipped),
         .uturn_done(uturn_done)
     ); 
+
+    
     wire moisture_start;
 
     wire [1:0] msg_type;
@@ -440,8 +442,10 @@ wire [3:0] dead_count_max;
         .temp_decimal(temp_decimal),
         .hum_int(hum_int),
         .hum_decimal(hum_decimal),
-        .maze_done(maze_done)
-
+        .maze_done(maze_done),
+        .row(row),
+        .col(col),
+        .dir(dir)
     );
 
     wire moisture_status;
@@ -504,14 +508,6 @@ wire [3:0] dead_count_max;
 
     wire mdone;
     assign mdone = moisture_done;
-
-    
-
-
-
-
-
-
 
 endmodule
 
