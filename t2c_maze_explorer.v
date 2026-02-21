@@ -485,13 +485,14 @@ always @(posedge clk or negedge rst_n) begin
                 end
 
                 if(halt_counter >= 1_000_000) begin
-                    if (solve_maze)
-                            state <= BACKTRACK;
-                    else begin
-                            state <= EXPLORE;
-                    end
+                    if (!doneflag)
+                        state <= solve_maze ? BACKTRACK : EXPLORE;  // switch to BACKTRACK when exploration done
+                    else
+                        state <= BACKTRACK;
                     maze_ack <= 1'b1;
                 end
+
+                
     end
 end
 
