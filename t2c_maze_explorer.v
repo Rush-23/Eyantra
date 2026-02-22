@@ -16,7 +16,8 @@ module t2c_maze_explorer (
     input wire [3:0] max_deadends,
     output reg maze_done,
     output reg [3:0] mpi_id,
-    input wire [15:0] dist1,dist2,dist3
+    input wire [15:0] dist1,dist2,dist3,
+    output reg doneflag
 );
 
 /*
@@ -49,7 +50,7 @@ reg [4:0] best;
 
 assign dbg_col = curr_col;
 assign dbg_row = curr_row;
-assign dbg_dir = dir;
+assign dbg_dir = visited[3][7];
 
 // Parameters
 parameter ROW = 9,               // number of rows in maze
@@ -93,11 +94,11 @@ reg [2:0] state;                 // current FSM state
 //reg [3:0] dead_count;            // number of deadends discovered
 
 // Flag to indicate switching to BACKTRACK
-reg doneflag;                    // once set, stay in BACKTRACK
+//reg doneflag;                    // once set, stay in BACKTRACK
 reg sensors_ready;
 reg[24:0] halt_counter;
 
-
+reg [1:0] open_paths_reg;
 
 
 // Constants
@@ -116,7 +117,9 @@ assign update_freeze = (visited[4][0] > 1);
 assign open_paths = (!left + !mid + !right);
 
 // signal that maze exploration is done (all 9 deadends found & at a junction)
-assign solve_maze = (dead_count >= max_deadends);
+assign solve_maze = (death == 9);
+
+reg[3:0] death;
 
 //integer to be used in for loop
 integer i,j;
@@ -148,14 +151,15 @@ always @(posedge clk or negedge rst_n) begin
 
         // IDLE: initialize start position & wait
         IDLE: begin
-          //  curr_col        <= 4;    // start column
-          //  curr_row        <= 8;    // start row
+           curr_col        <= 4;    // start column
+           curr_row        <= 8;    // start row
             visited[4][8]   <= 0;    // clear start cell visited state
             move            <= 3'b000;
             mpi_id <= 4'b0;
             next_row <= 8;
             next_col <= 4;
             next_dir <= 0;
+            death <= 0;
             if(maze_start)
                 state           <= WAIT; // next go to WAIT
         end
@@ -174,9 +178,11 @@ always @(posedge clk or negedge rst_n) begin
         EXPLORE: begin
             // default next position = stay put
             exploreflag <= 1;
-            //next_row = curr_row;
-            //next_col = curr_col;
+            next_row = curr_row;
+            next_col = curr_col;
 			maze_ack        <= 1'b0;
+
+            open_paths_reg <= !left + !right + !mid;
 
             // Left-hand rule: LEFT → FORWARD → RIGHT, else U_TURN
             case (dir)
@@ -214,6 +220,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_col <= curr_col;
                         next_row <= curr_row + 1;
                         mpi_id <= mpi_id + 1;
+                        death <= death + 1;
                        // dead_count <= dead_count + 1; // count deadend
                     end
                 end
@@ -251,6 +258,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col - 1;
                         next_row <= curr_row;
+                        death <= death + 1;
                         mpi_id <= mpi_id + 1;
                         //dead_count <= dead_count + 1; // count deadend
                     end
@@ -289,6 +297,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col;
                         next_row <= curr_row - 1;
+                        death <= death + 1;
                         mpi_id <= mpi_id + 1;
                        // dead_count <= dead_count + 1; // count deadend
                     end
@@ -328,6 +337,7 @@ always @(posedge clk or negedge rst_n) begin
                         next_dir      <= (dir + 2) & 2'b11;
                         next_col <= curr_col + 1;
                         next_row <= curr_row;
+                        death <= death + 1;
                         mpi_id <= mpi_id + 1;
                        // dead_count <= dead_count + 1; // count deadend
                 end
@@ -339,6 +349,7 @@ always @(posedge clk or negedge rst_n) begin
        
         // BACKTRACK: follow marked path with value 1 or 3 to go back to goal
        BACKTRACK: begin
+            maze_ack <= 0;
             doneflag <= 1;  // latch that we are in backtrack mode
             //dbg_dir <= 2'b01;
            // next_row = curr_row;
@@ -461,6 +472,7 @@ always @(posedge clk or negedge rst_n) begin
 
             // commit new position and return to WAIT
             state    <= WAIT_COMPLETE;
+            
         end
 
         WAIT_COMPLETE: begin
@@ -468,11 +480,11 @@ always @(posedge clk or negedge rst_n) begin
 
                 //move     <= 3'b000;
                 
-				if (open_paths == 0)
+				if (open_paths_reg == 0)
                      visited[curr_col][curr_row] <= 2;  // deadend
-                 else if (open_paths == 1 && !update_freeze)
+                 else if (open_paths_reg == 1 && !update_freeze)
                      visited[curr_col][curr_row] <= visited[curr_col][curr_row] + 1;
-                 else if (open_paths > 1)
+                 else if (open_paths_reg > 1)
                      visited[curr_col][curr_row] <= 3;
 
                  if (curr_row == goal_row && curr_col == goal_col)
@@ -483,11 +495,20 @@ always @(posedge clk or negedge rst_n) begin
                     state <= IDLE;
                 end
 
+                curr_row <= next_row;
+                curr_col <= next_col;
+                dir      <= next_dir;
+
+                
+
                // if (solve_maze)
                 //     state <= BACKTRACK;
                 //else
                 if(halt_counter >= 1_000_000) begin
-                    state <= EXPLORE;
+                    if (!doneflag)
+                state <= solve_maze ? BACKTRACK : EXPLORE;  // switch to BACKTRACK when exploration done
+                else
+                state <= BACKTRACK;  
                     maze_ack <= 1'b1;
                 end
     end
@@ -510,20 +531,6 @@ always@(posedge clk) begin
     else halt_counter <= 0;
 end
 
-
-always@(posedge clk) begin
-    if(state == IDLE) begin
-        curr_row <= 8;
-        curr_col <= 4;
-        dir <= 0;
-    end
-    else if(state == WAIT_COMPLETE) begin
-
-    curr_row <= next_row;
-    curr_col <= next_col;
-    dir      <= next_dir;
-    end
-end
 
 /*always@(*) begin
                 d_left  = 5'd31;

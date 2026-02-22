@@ -57,6 +57,7 @@ module top(
     reg [2:0] movefinal;
     
     assign led[0] = maze_start;
+    assign led[7] = doneflag;
 
 
     // 40 ms silence + ~25 ms active
@@ -251,6 +252,7 @@ wire [3:0] dead_count_max;
 	wire maze_ack;
 
     wire [3:0] df,ef;
+    wire doneflag;
 
     t2c_maze_explorer m1 (
         .clk(clk_50M),
@@ -272,7 +274,8 @@ wire [3:0] dead_count_max;
         .mpi_id(dead_count),
         .dist1(dist1),
         .dist2(dist2),
-        .dist3(dist3)
+        .dist3(dist3),
+        .doneflag(doneflag)
     );
 
     //assign led[7:6] = msg_type;
