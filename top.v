@@ -57,6 +57,7 @@ module top(
     reg [2:0] movefinal;
     
     assign led[0] = maze_start;
+    assign led[7] = solve_maze;
 
 
     // 40 ms silence + ~25 ms active
@@ -253,7 +254,7 @@ wire [3:0] dead_count_max;
     wire [3:0] row,col;
     wire [1:0] dir;
 	wire maze_ack;
-
+    wire solve_maze;
     wire [3:0] df,ef;
 
     t2c_maze_explorer m1 (
@@ -276,12 +277,19 @@ wire [3:0] dead_count_max;
         .mpi_id(dead_count),
         .dist1(dist1),
         .dist2(dist2),
-        .dist3(dist3)
+        .dist3(dist3),
+        .solve_maze(solve_maze),
+        .doneflag(done_flag),
+        .current_visit(current_visit)
     );
 
+
+    wire[1:0] current_visit;
     //assign led[7:6] = msg_type;
     //assign led[5]   = moisture_done;
     wire [3:0] dead_count;
+    wire done_flag;
+    assign led[6] = done_flag;
  
     // ================================
     // Maze solver → motion controller
@@ -453,7 +461,7 @@ wire [3:0] dead_count_max;
         .maze_done(maze_done),
         .row(row),
         .col(col),
-        .dir(dir)
+        .dir(current_visit)
     );
 
     wire moisture_status;

@@ -16,7 +16,10 @@ module t2c_maze_explorer (
     input wire [3:0] max_deadends,
     output reg maze_done,
     output reg [3:0] mpi_id,
-    input wire [15:0] dist1,dist2,dist3
+    input wire [15:0] dist1,dist2,dist3,
+    output wire[1:0] current_visit,
+    output wire solve_maze,
+    output reg doneflag
 );
 
 /*
@@ -59,12 +62,12 @@ parameter ROW = 9,               // number of rows in maze
 
 // Wires
 wire update_freeze;              // prevents incrementing visited count while exploring further
-wire solve_maze;                 // indicates exploration phase is complete
+//wire solve_maze;                 // indicates exploration phase is complete
 wire [1:0] open_paths;           // number of open directions at current cell
 reg [3:0] dead_count;
 reg [3:0] full_dead_count;
 
-
+assign current_visit = visited[curr_col][curr_row];
 // Registers
 
 // visited[col][row]: 2-bit visit state for each cell
@@ -94,7 +97,7 @@ reg [2:0] state;                 // current FSM state
 //reg [3:0] dead_count;            // number of deadends discovered
 
 // Flag to indicate switching to BACKTRACK
-reg doneflag;                    // once set, stay in BACKTRACK
+//reg doneflag;                    // once set, stay in BACKTRACK
 reg sensors_ready;
 reg[24:0] halt_counter;
 
@@ -117,7 +120,7 @@ assign update_freeze = (visited[4][0] > 1);
 assign open_paths = (!left + !mid + !right);
 
 // signal that maze exploration is done (all 9 deadends found & at a junction)
-assign solve_maze = (full_dead_count >= 8 && open_paths > 1);
+assign solve_maze = (full_dead_count >= 7);
 
 //integer to be used in for loop
 integer i,j;
@@ -165,7 +168,7 @@ always @(posedge clk or negedge rst_n) begin
         WAIT: begin
             if(!sense_valid && !maze_done)
                 state <= WAIT;
-            else if (!doneflag)
+            else if(!doneflag)
                 state <= solve_maze ? BACKTRACK : EXPLORE;  // switch to BACKTRACK when exploration done
             else
                 state <= BACKTRACK;                         // once doneflag set, always BACKTRACK
@@ -491,6 +494,8 @@ always @(posedge clk or negedge rst_n) begin
                         state <= BACKTRACK;
                     maze_ack <= 1'b1;
                 end
+
+                
 
                 
     end
