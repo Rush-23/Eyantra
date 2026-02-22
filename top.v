@@ -281,7 +281,8 @@ wire [3:0] dead_count_max;
         .pt2(pt2),
         .pt3(pt3),
         .pt4(pt4),
-        .pt5(pt5)
+        .pt5(pt5),
+
     );
 
     //assign led[7:6] = msg_type;
