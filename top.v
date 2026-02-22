@@ -253,6 +253,7 @@ wire [3:0] dead_count_max;
 
     wire [3:0] df,ef;
     wire doneflag;
+    wire pt1, pt2, pt3, pt4, pt5;
 
     t2c_maze_explorer m1 (
         .clk(clk_50M),
@@ -275,13 +276,18 @@ wire [3:0] dead_count_max;
         .dist1(dist1),
         .dist2(dist2),
         .dist3(dist3),
-        .doneflag(doneflag)
+        .doneflag(doneflag),
+        .pt1(pt1),
+        .pt2(pt2),
+        .pt3(pt3),
+        .pt4(pt4),
+        .pt5(pt5)
     );
 
     //assign led[7:6] = msg_type;
     //assign led[5]   = moisture_done;
     wire [3:0] dead_count;
- 
+    assign led[6:1] = {pt1, pt2, pt3, pt4, pt5}; // for debugging: show visited status of key cells
     // ================================
     // Maze solver → motion controller
     // ================================

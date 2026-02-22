@@ -17,7 +17,8 @@ module t2c_maze_explorer (
     output reg maze_done,
     output reg [3:0] mpi_id,
     input wire [15:0] dist1,dist2,dist3,
-    output reg doneflag
+    output reg doneflag,
+    output wire pt1, pt2, pt3, pt4, pt5
 );
 
 /*
@@ -51,7 +52,11 @@ reg [4:0] best;
 assign dbg_col = curr_col;
 assign dbg_row = curr_row;
 assign dbg_dir = visited[3][7];
-
+assign pt1 = visited[0][8][0];
+assign pt2 = visited[3][0][0];
+assign pt3 = visited[2][5][0];
+assign pt4 = visited[8][5][0];
+assign pt5 = visited[6][3][0];
 // Parameters
 parameter ROW = 9,               // number of rows in maze
           COL = 9,               // number of columns in maze
