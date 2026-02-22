@@ -67,18 +67,20 @@ wire [1:0] open_paths;           // number of open directions at current cell
 reg [3:0] dead_count;
 reg [3:0] full_dead_count;
 
-assign current_visit = visited[curr_col][curr_row];
+
 // Registers
 
 // visited[col][row]: 2-bit visit state for each cell
 // 0 = unvisited, 1 = once, 2 = twice/dead, 3 = junction
 reg [1:0] visited [0:COL-1][0:ROW-1];
 
+
 // Current bot position (row, col)
 reg [3:0] curr_row, curr_col;
+assign current_visit = visited[0][8];
 
 // Next bot position (row, col) to move to
-reg [3:0] next_row, next_col;
+reg [3:0] next_row, next_col, prev_row, prev_col;
 wire [3:0] next_row_wire, next_col_wire;
 
 // Current facing direction: 0 = North, 1 = East, 2 = South, 3 = West
@@ -99,7 +101,8 @@ reg [2:0] state;                 // current FSM state
 // Flag to indicate switching to BACKTRACK
 //reg doneflag;                    // once set, stay in BACKTRACK
 reg sensors_ready;
-reg[24:0] halt_counter;
+reg[31:0] halt_counter;
+reg open_paths_reg;
 
 
 
@@ -120,7 +123,7 @@ assign update_freeze = (visited[4][0] > 1);
 assign open_paths = (!left + !mid + !right);
 
 // signal that maze exploration is done (all 9 deadends found & at a junction)
-assign solve_maze = (full_dead_count >= 7);
+assign solve_maze = (full_dead_count == 9 );
 
 //integer to be used in for loop
 integer i,j;
@@ -157,8 +160,8 @@ always @(posedge clk or negedge rst_n) begin
             visited[4][8]   <= 0;    // clear start cell visited state
             move            <= 3'b000;
             mpi_id <= 4'b0;
-            next_row <= 8;
-            next_col <= 4;
+            curr_row <= 8;
+            curr_col <= 4;
             next_dir <= 0;
             if(maze_start)
                 state           <= WAIT; // next go to WAIT
@@ -178,9 +181,10 @@ always @(posedge clk or negedge rst_n) begin
         EXPLORE: begin
             // default next position = stay put
             exploreflag <= 1;
-            //next_row = curr_row;
-            //next_col = curr_col;
+            next_row = curr_row;
+            next_col = curr_col;
 			maze_ack        <= 1'b0;
+            open_paths_reg <= open_paths;
 
             // Left-hand rule: LEFT → FORWARD → RIGHT, else U_TURN
             case (dir)
@@ -189,34 +193,34 @@ always @(posedge clk or negedge rst_n) begin
                     if (!left) begin
                         move     <= 3'b010;           // turn LEFT
                         next_dir      <= (dir + 3) & 2'b11;
-                        next_col <= curr_col - 1;
-                        next_row <= curr_row;
+                        next_col = curr_col - 1;
+                        next_row = curr_row;
                     end 
                     else if (!mid && (curr_row > 0)) begin
                         move     <= 3'b001;           // go FORWARD
                         next_dir      <= dir;
-                        next_row <= curr_row - 1;
-                        next_col <= curr_col;
+                        next_row = curr_row - 1;
+                        next_col = curr_col;
                     end 
                     else if (!right) begin
                         move     <= 3'b011;           // turn RIGHT
                         next_dir      <= (dir + 1) & 2'b11;
-                        next_col <= curr_col + 1;
-                        next_row <= curr_row;
+                        next_col = curr_col + 1;
+                        next_row = curr_row;
                     end 
                     else if (left && mid && right && ir) begin
                         move     <= 3'b100;           // U_TURN
                         next_dir      <= (dir + 2) & 2'b11;
-                        next_col <= curr_col;
-                        next_row <= curr_row + 1;
+                        next_col = curr_col;
+                        next_row = curr_row + 1;
                         mpi_id <= mpi_id + 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
                     else if (left && mid && right) begin
                         move     <= 3'b101;           // U_TURN
                         next_dir      <= (dir + 2) & 2'b11;
-                        next_col <= curr_col;
-                        next_row <= curr_row + 1;
+                        next_col = curr_col;
+                        next_row = curr_row + 1;
                         mpi_id <= mpi_id + 1;
                         full_dead_count <= full_dead_count + 1; // count deadend
                     end
@@ -227,34 +231,34 @@ always @(posedge clk or negedge rst_n) begin
                     if (!left && (curr_row > 0)) begin
                         move     <= 3'b010;           // turn LEFT
                         next_dir      <= (dir + 3) & 2'b11;
-                        next_row <= curr_row - 1;
-                        next_col <= curr_col;
+                        next_row = curr_row - 1;
+                        next_col = curr_col;
                     end 
                     else if (!mid) begin
                         move     <= 3'b001;           // go FORWARD
                         next_dir      <= dir;
-                        next_col <= curr_col + 1;
-                        next_row <= curr_row;
+                        next_col = curr_col + 1;
+                        next_row = curr_row;
                     end 
                     else if (!right) begin
                         move     <= 3'b011;           // turn RIGHT
                         next_dir      <= (dir + 1) & 2'b11;
-                        next_row <= curr_row + 1;
-                        next_col <= curr_col;
+                        next_row = curr_row + 1;
+                        next_col = curr_col;
                     end 
                     else if (left && mid && right && ir) begin
                         move     <= 3'b100;           // U_TURN
                         next_dir      <= (dir + 2) & 2'b11;
-                        next_col <= curr_col - 1;
-                        next_row <= curr_row;
+                        next_col = curr_col - 1;
+                        next_row = curr_row;
                         mpi_id <= mpi_id + 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
                     else if (left && mid && right) begin
                         move     <= 3'b101;           // U_TURN
                         next_dir      <= (dir + 2) & 2'b11;
-                        next_col <= curr_col - 1;
-                        next_row <= curr_row;
+                        next_col = curr_col - 1;
+                        next_row = curr_row;
                         mpi_id <= mpi_id + 1;
                         full_dead_count <= full_dead_count + 1; // count deadend
                     end
@@ -265,34 +269,34 @@ always @(posedge clk or negedge rst_n) begin
                     if (!left) begin
                         move     <= 3'b010;           // turn LEFT
                         next_dir      <= (dir + 3) & 2'b11;
-                        next_col <= curr_col + 1;
-                        next_row <= curr_row;
+                        next_col = curr_col + 1;
+                        next_row = curr_row;
                     end 
                     else if (!mid) begin
                         move     <= 3'b001;           // go FORWARD
                         next_dir      <= dir;
-                        next_row <= curr_row + 1;
-                        next_col <= curr_col;
+                        next_row = curr_row + 1;
+                        next_col = curr_col;
                     end 
                     else if (!right) begin
                         move     <= 3'b011;           // turn RIGHT
                         next_dir      <= (dir + 1) & 2'b11;
-                        next_col <= curr_col - 1;
-                        next_row <= curr_row;
+                        next_col = curr_col - 1;
+                        next_row = curr_row;
                     end 
                     else if (left && mid && right && ir) begin
                         move     <= 3'b100;           // U_TURN
                         next_dir      <= (dir + 2) & 2'b11;
-                        next_col <= curr_col;
+                        next_col = curr_col;
                         mpi_id <= mpi_id + 1;
-                        next_row <= curr_row - 1;
+                        next_row = curr_row - 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
                     else if (left && mid && right) begin
                         move     <= 3'b101;           // U_TURN
                         next_dir      <= (dir + 2) & 2'b11;
-                        next_col <= curr_col;
-                        next_row <= curr_row - 1;
+                        next_col = curr_col;
+                        next_row = curr_row - 1;
                         mpi_id <= mpi_id + 1;
                         full_dead_count <= full_dead_count + 1; // count deadend
                     end
@@ -304,39 +308,40 @@ always @(posedge clk or negedge rst_n) begin
                     if (!left) begin
                         move     <= 3'b010;           // turn LEFT
                         next_dir      <= (dir + 3) & 2'b11;
-                        next_row <= curr_row + 1;
-                        next_col <= curr_col;
+                        next_row = curr_row + 1;
+                        next_col = curr_col;
                     end 
                     else if (!mid) begin
                         move     <= 3'b001;           // go FORWARD
                         next_dir      <= dir;
-                        next_col <= curr_col - 1;
-                        next_row <= curr_row;
+                        next_col = curr_col - 1;
+                        next_row = curr_row;
                     end 
                     else if (!right && (curr_row > 0)) begin
                         move     <= 3'b011;           // turn RIGHT
                         next_dir      <= (dir + 1) & 2'b11;
-                        next_row <= curr_row - 1;
-                        next_col <= curr_col;
+                        next_row = curr_row - 1;
+                        next_col = curr_col;
                     end 
                     else if (left && mid && right && ir) begin
                         move     <= 3'b100;           // U_TURN
                         next_dir      <= (dir + 2) & 2'b11;
-                        next_col <= curr_col + 1;
-                        next_row <= curr_row;
+                        next_col = curr_col + 1;
+                        next_row = curr_row;
                         mpi_id <= mpi_id + 1;
                         dead_count <= dead_count + 1; // count deadend
                     end
                     else if (left && mid && right) begin
                         move     <= 3'b101;           // U_TURN
                         next_dir      <= (dir + 2) & 2'b11;
-                        next_col <= curr_col + 1;
-                        next_row <= curr_row;
+                        next_col = curr_col + 1;
+                        next_row = curr_row;
                         mpi_id <= mpi_id + 1;
                         full_dead_count <= full_dead_count + 1; // count deadend
                 end
                 end
             endcase
+                
 				state <= WAIT_COMPLETE;
         end 
 
@@ -465,9 +470,13 @@ always @(posedge clk or negedge rst_n) begin
 
             // commit new position and return to WAIT
             state    <= WAIT_COMPLETE;
+            //open_paths_reg <= open_paths;
         end
 
         WAIT_COMPLETE: begin
+            curr_row <= next_row;
+            curr_col <= next_col;
+            dir      <= next_dir;
              if (move_done) begin
 
                 //move     <= 3'b000;
@@ -492,7 +501,9 @@ always @(posedge clk or negedge rst_n) begin
                         state <= solve_maze ? BACKTRACK : EXPLORE;  // switch to BACKTRACK when exploration done
                     else
                         state <= BACKTRACK;
-                    maze_ack <= 1'b1;
+                move     <= 3'b000;
+                
+                maze_ack <= 1'b1;
                 end
 
                 
@@ -519,7 +530,7 @@ always@(posedge clk) begin
 end
 
 
-always@(posedge clk) begin
+/*always@(posedge clk) begin
     if(state == IDLE) begin
         curr_row <= 8;
         curr_col <= 4;
@@ -531,7 +542,7 @@ always@(posedge clk) begin
     curr_col <= next_col;
     dir      <= next_dir;
     end
-end
+end */
 
 /*always@(*) begin
                 d_left  = 5'd31;

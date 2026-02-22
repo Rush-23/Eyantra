@@ -56,7 +56,7 @@ module top(
     reg [21:0] slot_counter;
     reg [2:0] movefinal;
     
-    assign led[0] = maze_start;
+    assign led[1:0] = current_visit;
     assign led[7] = solve_maze;
 
 
