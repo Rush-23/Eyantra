@@ -53,7 +53,7 @@ module motor (
     end
 
     wire speed_10 = (count < 8'd140);
-    wire speed_25 = (count < 8'd160);
+    wire speed_25 = (count < 8'd150);
     wire speed_50 = (count < 8'd160);
     wire speed_75 = (count < 8'd165);
     wire speed_40 = (count < 8'd10);
@@ -135,7 +135,7 @@ end
         if (enable) begin
             case (move_cmd)
                 FORWARD, REVERSE: begin
-                    en_l = speed_50;
+                    en_l = speed_75;
                     en_r = speed_50;
                 end
 

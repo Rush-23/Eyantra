@@ -152,7 +152,7 @@ module t1b_ultrasonic(
         end 
 		  else if (!enable) begin
             trig <= 0;
-            op_reg <= 0;
+            //op_reg <= 0;
             trig_sent <= 0;
         end else begin
             case (current_state)
@@ -181,7 +181,7 @@ module t1b_ultrasonic(
                     
                     // Object Present Logic (Threshold < 70mm)
                     // Added check > 0 to ensure 0mm (timeout/error) isn't counted as an object
-                    if ( ((echo_width * 230) >> 16) < 225 && ((echo_width * 230) >> 16) > 0 )
+                    if ( ((echo_width * 230) >> 16) <= 225 && ((echo_width * 230) >> 16) > 0 )
                         op_reg <= 1'b1; 
                     else if(((echo_width * 230) >> 16) > 225)
                         op_reg <= 1'b0;

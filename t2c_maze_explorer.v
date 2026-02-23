@@ -18,7 +18,7 @@ module t2c_maze_explorer (
     output reg [3:0] mpi_id,
     input wire [15:0] dist1,dist2,dist3,
     output reg doneflag,
-    output wire pt1, pt2, pt3, pt4, pt5,
+    output wire pt1, pt2, pt3, pt4, pt5
 );
 
 /*
@@ -51,7 +51,7 @@ reg [4:0] best;
 
 assign dbg_col = curr_col;
 assign dbg_row = curr_row;
-assign dbg_dir = visited[3][7];
+assign dbg_dir = visited[4][5];
 assign pt1 = visited[0][8][0];
 assign pt2 = visited[3][0][0];
 assign pt3 = visited[2][5][0];
@@ -500,22 +500,30 @@ always @(posedge clk or negedge rst_n) begin
                     state <= IDLE;
                 end
 
-                curr_row <= next_row;
-                curr_col <= next_col;
-                dir      <= next_dir;
+                if (next_row < ROW)
+                    curr_row <= next_row;
+                else
+                    curr_row <= curr_row;
+
+                if (next_col < COL)
+                    curr_col <= next_col;
+                else
+                    curr_col <= curr_col;
+
+                dir <= next_dir;
 
                 
 
                // if (solve_maze)
                 //     state <= BACKTRACK;
                 //else
-                if(halt_counter >= 1_000_000) begin
+                //if(halt_counter >= 1_000_000) begin
                     if (!doneflag)
                 state <= solve_maze ? BACKTRACK : EXPLORE;  // switch to BACKTRACK when exploration done
                 else
                 state <= BACKTRACK;  
                     maze_ack <= 1'b1;
-                end
+                //end
     end
 end
 
@@ -575,7 +583,7 @@ end
 */
 
 always@(posedge clk) begin
-    if(move == 3'b100) begin
+    if(move == 3'b101) begin
         case ({curr_col, curr_row})
             8'h05: mpi_id <= 1;
             8'h21: mpi_id <= 2;

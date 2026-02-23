@@ -106,7 +106,7 @@ module controller (
     // =====================================================
     // Calibration parameters
     // =====================================================
-    localparam FWD_TICKS = 32'd4950, LTICK_90 = 32'd1400, RTICK_90 =32'd1400, TICK_180 = 32'd2950, POST_FWD_TICKS = 32'd5290;
+    localparam FWD_TICKS = 32'd4800, LTICK_90 = 32'd1400, RTICK_90 =32'd1400, TICK_180 = 32'd2950, POST_FWD_TICKS = 32'd5100;
 
     // =====================================================
     // WAIT timing (1 second)
