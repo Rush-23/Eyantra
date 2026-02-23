@@ -88,8 +88,6 @@ module bt_tx_control (
                             
                         endcase
                     end
-
-                    else state <= 125;
                 end
 
                     // MPIM Message

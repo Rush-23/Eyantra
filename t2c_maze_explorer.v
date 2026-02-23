@@ -78,6 +78,7 @@ reg [1:0] visited [0:COL-1][0:ROW-1];
 
 // Current bot position (row, col)
 reg [3:0] curr_row, curr_col;
+reg endflag;
 
 // Next bot position (row, col) to move to
 reg [3:0] next_row, next_col;
@@ -186,6 +187,7 @@ always @(posedge clk or negedge rst_n) begin
             next_row = curr_row;
             next_col = curr_col;
 			maze_ack        <= 1'b0;
+            endflag        <= 1'b0;
 
             open_paths_reg <= !left + !right + !mid;
 
@@ -364,7 +366,7 @@ always @(posedge clk or negedge rst_n) begin
             // At goal: emit final move based on facing direction
             if (curr_col == goal_col && curr_row == goal_row) begin    
                 case (dir)
-                    2'd0: move <= 3'b001; // facing North: FORWARD
+                    2'd0: begin move <= 3'b001; endflag <= 1'b1; end // facing North: FORWARD
                     2'd1: move <= 3'b010; // facing East : LEFT
                     2'd3: move <= 3'b011; // facing West : RIGHT
                     default: move <= 3'b100; // otherwise U_TURN
@@ -495,7 +497,7 @@ always @(posedge clk or negedge rst_n) begin
                  if (curr_row == goal_row && curr_col == goal_col)
                     visited[curr_col][curr_row] <= 3;
 
-                if(dist2 > 500 && dist1 > 800 && dist3 > 500) begin
+                if((endflag) || (dist1 > 500 && dist2 > 800 && dist3 > 500)) begin
                     maze_done <= 1'b1;
                     state <= IDLE;
                 end
@@ -583,7 +585,7 @@ end
 */
 
 always@(posedge clk) begin
-    if(move == 3'b101) begin
+    if(move == 3'b100) begin
         case ({curr_col, curr_row})
             8'h05: mpi_id <= 1;
             8'h21: mpi_id <= 2;

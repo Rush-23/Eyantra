@@ -106,7 +106,7 @@ module controller (
     // =====================================================
     // Calibration parameters
     // =====================================================
-    localparam FWD_TICKS = 32'd4800, LTICK_90 = 32'd1400, RTICK_90 =32'd1400, TICK_180 = 32'd2950, POST_FWD_TICKS = 32'd5100;
+    localparam FWD_TICKS = 32'd4800, LTICK_90 = 32'd1425, RTICK_90 =32'd1400, TICK_180 = 32'd2960, POST_FWD_TICKS = 32'd5100;
 
     // =====================================================
     // WAIT timing (1 second)
@@ -283,7 +283,7 @@ end
                 stopped = 1'b0;
                 to_motordriver = FORWARD;
 
-              if (avg_turn >= POST_FWD_TICKS || dist2 < 120)
+              if (avg_turn >= POST_FWD_TICKS || dist2 < 105 || ir)
                 next_state = DONE;
                 
             end
@@ -293,7 +293,7 @@ end
                 to_motordriver = FORWARD;
                 stopped = 1'b0;
 
-              if (avg_turn >= POST_FWD_TICKS || dist2 < 120)
+              if (avg_turn >= POST_FWD_TICKS || dist2 < 105)
                 next_state = DONE;
                 
             end
@@ -491,8 +491,8 @@ endmodule */
 // Correction Window Control
 // ===================
 
-localparam [31:0] CORR_WINDOW_FWD = 32'd1000;
-localparam [31:0] CORR_WINDOW_PFWD = 32'd2000;
+localparam [31:0] CORR_WINDOW_FWD = 32'd500;
+localparam [31:0] CORR_WINDOW_PFWD = 32'd1500;
 
 reg correction_active;
 
