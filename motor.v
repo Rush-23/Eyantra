@@ -28,8 +28,8 @@ module motor (
                RIGHT       = 4'b0011,
                UTURN       = 4'b0100,
                DRIFT_LEFT   = 4'b0101,
-               DRIFT_LEFT_HARD   = 4'b0110,
-               DRIFT_RIGHT = 4'b0111,
+               DRIFT_LEFT_HARD   = 4'b0111,
+               DRIFT_RIGHT = 4'b0110,
                DRIFT_RIGHT_HARD  = 4'b1000,  // example, adjust encodings
                REVERSE     = 4'b1001;
 
@@ -55,7 +55,7 @@ module motor (
     wire speed_10 = (count < 8'd140);
     wire speed_25 = (count < 8'd150);
     wire speed_50 = (count < 8'd160);
-    wire speed_75 = (count < 8'd165);
+    wire speed_75 = (count < 8'd167);
     wire speed_40 = (count < 8'd10);
     wire speed_60 = (count < 8'd180);
 

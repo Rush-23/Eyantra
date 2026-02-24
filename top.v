@@ -264,8 +264,8 @@ wire [3:0] dead_count_max;
         .move(movef),
         .move_done(move_done_wire),
         .sense_valid(sensor_frame_done),
-        .dbg_col(row),
-        .dbg_row(col),
+        .dbg_col(col),
+        .dbg_row(row),
         .dbg_dir(dir),
 		.maze_ack(maze_ack),
         .ir(ir_true),
@@ -282,13 +282,14 @@ wire [3:0] dead_count_max;
         .pt3(pt3),
         .pt4(pt4),
         .pt5(pt5),
+        .death(death)
 
     );
 
     //assign led[7:6] = msg_type;
     //assign led[5]   = moisture_done;
     wire [3:0] dead_count;
-    assign led[6:1] = {pt1, pt2, pt3, pt4, pt5}; // for debugging: show visited status of key cells
+    assign led[5:1] = {pt1, pt2, pt3, pt4, pt5}; // for debugging: show visited status of key cells
     // ================================
     // Maze solver → motion controller
     // ================================
@@ -320,9 +321,13 @@ wire [3:0] dead_count_max;
         .uturn_done(uturn_done),
         .maze_done(maze_done),
         .deltaL_reg(DeltaL),
-        .deltaR_reg(DeltaR)
+        .deltaR_reg(DeltaR),
+        .dead_count(death),
+        .col(col),
+        .row(row)
     );
 
+    wire [3:0] death;
     wire signed [16:0] DeltaL,DeltaR;
 
     // ================================
@@ -481,11 +486,15 @@ wire [3:0] dead_count_max;
     if (!reset)
         mord <= 0;
     else if (moist_count == 10_000_000) begin
-        if (dead_count == 1)
+        if (dead_count == 4)
             mord <= 1;
-        else if (dead_count == 3)
+        else if (dead_count == 8)
             mord <= 0;
-        else if (dead_count == 4)
+        else if (dead_count == 9)
+            mord <= 0;
+        else if (dead_count == 5)
+            mord <= 0;
+        else if (dead_count == 7)
             mord <= 1;
     end
     end
@@ -493,7 +502,7 @@ wire [3:0] dead_count_max;
 
     reg [31:0] moist_count = 32'd0;
     reg moist_bt_done;
-    localparam MOIST_CYCLES  = 300_000_000;
+    localparam MOIST_CYCLES  = 75_000_000;
     
 
     always @(posedge clk_50M or negedge reset) begin

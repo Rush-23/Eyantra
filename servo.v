@@ -28,7 +28,7 @@ module servo (
 
     // ================= Time durations (ms) =================
     localparam DIP_TIME     = 300;
-    localparam HOLD_TIME    = 6000;
+    localparam HOLD_TIME    = 1000;
     localparam RETRACT_TIME = 300;
 
     // ================= FSM states =================

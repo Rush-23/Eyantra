@@ -29,7 +29,9 @@ module controller (
 	input  wire mpi_done,
     input wire maze_done,
     output reg  uturn_done,
-    output reg signed [16:0] deltaL_reg, deltaR_reg
+    output reg signed [16:0] deltaL_reg, deltaR_reg,
+    input wire [3:0] dead_count,
+    input wire [3:0] col,row
 );
 
     // =====================================================
@@ -106,7 +108,7 @@ module controller (
     // =====================================================
     // Calibration parameters
     // =====================================================
-    localparam FWD_TICKS = 32'd4800, LTICK_90 = 32'd1425, RTICK_90 =32'd1400, TICK_180 = 32'd2960, POST_FWD_TICKS = 32'd5100;
+    localparam FWD_TICKS = 32'd4800, LTICK_90 = 32'd1405, RTICK_90 =32'd1425, TICK_180 = 32'd3020, POST_FWD_TICKS = 32'd5100;
 
     // =====================================================
     // WAIT timing (1 second)
@@ -254,7 +256,7 @@ end
                               if(uturn_counter >= 4) mpi_start = 1'b0;
                               //if(mpi_done) 
                               //begin
-                              if(uturn_counter >= 350_000_000) begin
+                              if(uturn_counter >= 150_000_000) begin
                                 to_motordriver = UTURN;
                                 if(avg_turn >= TICK_180) next_state = POST_FORWARD_UTURN;
                               end
@@ -264,6 +266,7 @@ end
                         end
 
                         UTURN_NMPI : begin
+
                             to_motordriver = UTURN;
                             if (avg_turn >= TICK_180)
                                 next_state = POST_FORWARD_UTURN;
@@ -283,8 +286,15 @@ end
                 stopped = 1'b0;
                 to_motordriver = FORWARD;
 
-              if (avg_turn >= POST_FWD_TICKS || dist2 < 105 || ir)
+                if((ir) && (left_wall ^ right_wall)) begin 
+                if(avg_turn >= POST_FWD_TICKS - 1600)
+                    next_state = DONE;
+                end
+
+              if (avg_turn >= POST_FWD_TICKS || dist2 < 105)
                 next_state = DONE;
+
+
                 
             end
 
@@ -292,9 +302,11 @@ end
                 enable         = 1'b1;
                 to_motordriver = FORWARD;
                 stopped = 1'b0;
-
+                
+ 
               if (avg_turn >= POST_FWD_TICKS || dist2 < 105)
                 next_state = DONE;
+        
                 
             end
 
@@ -542,16 +554,16 @@ always @(*) begin
         (deltaR > 2 || deltaR < -2)) begin
 
         if (wall_err > MED_ERR)
-            steer_cmd = DRIFT_LEFT;
+            steer_cmd = DRIFT_RIGHT;
 
         else if (wall_err < -MED_ERR)
-            steer_cmd = DRIFT_RIGHT;
-
-        else if (wall_err > SMALL_ERR)
             steer_cmd = DRIFT_LEFT;
 
-        else if (wall_err < -SMALL_ERR)
+        else if (wall_err > SMALL_ERR)
             steer_cmd = DRIFT_RIGHT;
+
+        else if (wall_err < -SMALL_ERR)
+            steer_cmd = DRIFT_LEFT;
 
         else
             steer_cmd = FORWARD;
@@ -567,9 +579,9 @@ end
 
             if (deltaL > 2 || deltaL < -2) begin
                 if (dist3 < 73)
-                    steer_cmd = DRIFT_LEFT;
-                else if (dist3 > 73)
                     steer_cmd = DRIFT_RIGHT;
+                else if (dist3 > 73)
+                    steer_cmd = DRIFT_LEFT;
                 else
                     steer_cmd = FORWARD;
             end
@@ -582,9 +594,9 @@ end
 
             if (deltaR > 2 || deltaR < -2) begin
                 if (dist1 < 73)
-                    steer_cmd = DRIFT_RIGHT;
-                else if (dist1 > 73)
                     steer_cmd = DRIFT_LEFT;
+                else if (dist1 > 73)
+                    steer_cmd = DRIFT_RIGHT;
                 else
                     steer_cmd = FORWARD;
             end
