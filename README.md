@@ -1,7 +1,7 @@
 # e-Yantra Maze Solver Bot (Warehouse Automation)
 
 ## Overview  
-This project was developed as part of the e-Yantra initiative, focusing on solving a maze-based navigation problem inspired by warehouse automation. The objective was to design a robot capable of navigating through a structured grid environment, identifying optimal paths, and completing tasks efficiently, similar to autonomous systems used in modern warehouses.
+This project was developed as part of the e-Yantra initiative, focusing on solving a maze-based navigation problem inspired by warehouse automation mainly developed to help farmers maintain and observe theri farmhouse. The objective was to design a robot capable of navigating through a structured grid environment, identifying optimal paths, and completing tasks efficiently, similar to autonomous systems used in modern warehouses.
 
 ---
 
